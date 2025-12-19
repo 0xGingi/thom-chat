@@ -11,12 +11,13 @@
 - Removed Convex -> Using SQLite instead
 - Added Dockerfile/Docker Compose
 - Yarn -> Bun
-- Openrouter -> NanoGPT
+- Openrouter -> Nano-GPT (nano-gpt.com)
 - Theme more closely resembles T3 Chat
 - Nano-GPT Web Search
 - Nano-GPT Web Scraping when you enter a URL (adds to context)
 - Nano-GPT Context Memory (Single Chat)
 - Cross-Conversation Memory (All Chats)
+- Nano-GPT Image Generation + img2img support
 
 ### Ensure to run ```npx drizzle-kit push``` to upgrade your database schema when new features are added!
 

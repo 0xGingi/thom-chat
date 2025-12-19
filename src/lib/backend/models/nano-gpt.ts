@@ -23,29 +23,53 @@ export interface NanoGPTModel {
 export function getNanoGPTModels() {
     return ResultAsync.fromPromise(
         (async () => {
-            const res = await fetch('https://nano-gpt.com/api/v1/models');
+            const [textModelsRes, imageModelsRes] = await Promise.all([
+                fetch('https://nano-gpt.com/api/v1/models'),
+                fetch('https://nano-gpt.com/api/models/image')
+            ]);
 
-            if (!res.ok) {
-                throw new Error(`Failed to fetch models: ${res.statusText}`);
+            if (!textModelsRes.ok) {
+                throw new Error(`Failed to fetch text models: ${textModelsRes.statusText}`);
             }
 
-            const { data } = await res.json();
-
-            if (!Array.isArray(data)) {
-                return [];
-            }
-
-            return data.map((m: any) => ({
+            const { data: textData } = await textModelsRes.json();
+            const textModels = Array.isArray(textData) ? textData.map((m: any) => ({
                 id: m.id,
-                name: m.id, // NanoGPT/OpenAI format usually doesn't have a separate name
+                name: m.id,
                 created: m.created || Date.now(),
-                description: '', // No description in standard OpenAI format
+                description: '',
                 architecture: {
                     input_modalities: ['text'],
                     output_modalities: ['text'],
                     tokenizer: 'unknown',
-                }, // Mocking for compatibility
-            })) as NanoGPTModel[];
+                },
+            })) : [];
+
+            let imageModels: NanoGPTModel[] = [];
+            if (imageModelsRes.ok) {
+                const imageData = await imageModelsRes.json();
+                if (imageData.models && imageData.models.image) {
+                    imageModels = Object.entries(imageData.models.image).map(([id, m]: [string, any]) => ({
+                        id: id,
+                        name: m.name || id,
+                        created: m.dateAdded ? new Date(m.dateAdded).getTime() : Date.now(),
+                        description: m.description || '',
+                        architecture: {
+                            input_modalities: ['text'],
+                            output_modalities: ['image'],
+                            tokenizer: 'unknown',
+                        },
+                        pricing: {
+                            prompt: '0',
+                            completion: '0',
+                            image: JSON.stringify(m.cost) || '0',
+                            request: '0'
+                        }
+                    }));
+                }
+            }
+
+            return [...textModels, ...imageModels] as NanoGPTModel[];
         })(),
         (e) => `[nano-gpt] Failed to fetch models: ${e}`
     );

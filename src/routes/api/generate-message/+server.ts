@@ -10,8 +10,9 @@ import {
 	messages,
 	storage,
 } from '$lib/db/schema';
-import { readFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { eq, and, asc, sql } from 'drizzle-orm';
+import { join } from 'path';
 import { auth } from '$lib/auth';
 import { Provider, type Annotation } from '$lib/types';
 import { error, json, type RequestHandler } from '@sveltejs/kit';
@@ -25,6 +26,7 @@ import { parseMessageForRules } from '$lib/utils/rules.js';
 import { performNanoGPTWebSearch } from '$lib/backend/web-search';
 import { scrapeUrlsFromMessage } from '$lib/backend/url-scraper';
 import { getUserMemory, upsertUserMemory } from '$lib/db/queries/user-memories';
+import { getNanoGPTModels } from '$lib/backend/models/nano-gpt';
 
 // Set to true to enable debug logging
 const ENABLE_LOGGING = true;
@@ -641,6 +643,20 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 	}
 }
 
+
+async function getGenerationStats(generationId: string, apiKey: string) {
+	return ResultAsync.fromPromise(
+		(async () => {
+			const res = await fetch(`https://nano-gpt.com/api/v1/generations/${generationId}`, {
+				headers: { Authorization: `Bearer ${apiKey}` }
+			});
+			if (!res.ok) throw new Error(res.statusText);
+			return await res.json();
+		})(),
+		e => `${e}`
+	);
+}
+
 export const POST: RequestHandler = async ({ request }) => {
 	const startTime = Date.now();
 	log('Starting message generation request', startTime);
@@ -696,10 +712,51 @@ export const POST: RequestHandler = async ({ request }) => {
 		}),
 	]);
 
-	if (!modelRecord) {
+	let effectiveModelRecord = modelRecord;
+
+	// If model is not found/enabled, check if it's a valid NanoGPT model and auto-enable it
+	if (!effectiveModelRecord) {
+		log(`Model ${args.model_id} not enabled, checking validity...`, startTime);
+		const modelsResult = await getNanoGPTModels();
+		if (modelsResult.isOk()) {
+			const validModel = modelsResult.value.find((m) => m.id === args.model_id);
+			if (validModel) {
+				log(`Model ${args.model_id} is valid, auto-enabling`, startTime);
+				const now = new Date();
+				await db.insert(userEnabledModels).values({
+					id: generateId(),
+					userId,
+					provider: Provider.NanoGPT,
+					modelId: args.model_id,
+					pinned: false,
+					createdAt: now,
+					updatedAt: now,
+				});
+
+				// Re-fetch or mock the record
+				effectiveModelRecord = {
+					id: 'auto-generated', // doesn't matter for logic
+					userId,
+					provider: Provider.NanoGPT,
+					modelId: args.model_id,
+					pinned: false,
+					createdAt: now,
+					updatedAt: now,
+				};
+			}
+		}
+	}
+
+	if (!effectiveModelRecord) {
 		log('Model not found or not enabled', startTime);
 		return error(400, 'Model not found or not enabled');
 	}
+
+	// We update references to modelRecord below?
+	// The code uses modelRecord later. I should update it or use effectiveModelRecord.
+	// The code below uses `modelRecord` in `generateAIResponse`.
+
+	const finalModelRecord = effectiveModelRecord;
 
 	// Determine API key
 	let actualKey: string;
@@ -798,6 +855,174 @@ export const POST: RequestHandler = async ({ request }) => {
 		await db.update(conversations).set({ generating: true }).where(eq(conversations.id, conversationId));
 	}
 
+	// Check if the selected model is an image model
+	// We already fetched models if we auto-enabled, but maybe not if we didn't.
+	// To be cleaner and avoid double fetching, let's reuse if possible, but the scope is tricky.
+	// We'll just fetch again, it's not super expensive (likely cached by fetch dedupe or fast enough).
+	// Or we could have lifted the fetch up.
+	// But since I can't easily refactor the whole file in chunks, I'll stick to fetching.
+	// Actually, I can use a variable declared outside if I wanted.. but let's just fetch, it's safer for now.
+
+	const modelsResult = await getNanoGPTModels();
+	let isImageModel = false;
+
+	if (modelsResult.isOk()) {
+		const modelInfo = modelsResult.value.find((m) => m.id === args.model_id);
+		if (modelInfo?.architecture?.output_modalities?.includes('image')) {
+			isImageModel = true;
+		}
+	}
+
+	if (isImageModel) {
+		log('Detected image generation model', startTime);
+
+		// Create assistant message placeholder
+		const assistantMessageId = generateId();
+		await db.insert(messages).values({
+			id: assistantMessageId,
+			conversationId,
+			modelId: args.model_id,
+			provider: Provider.NanoGPT,
+			content: 'Generating image...',
+			role: 'assistant',
+			createdAt: new Date(),
+		});
+
+		// Run image generation in background
+		(async () => {
+			try {
+				let imageDataUrl: string | undefined;
+
+				// Check for input image (img2img)
+				if (args.images && args.images.length > 0) {
+					const inputImage = args.images[0]!;
+					const storageRecord = await db.query.storage.findFirst({
+						where: eq(storage.id, inputImage.storage_id),
+					});
+
+					if (storageRecord && existsSync(storageRecord.path)) {
+						const fileBuffer = readFileSync(storageRecord.path);
+						const base64 = fileBuffer.toString('base64');
+						imageDataUrl = `data:${storageRecord.mimeType};base64,${base64}`;
+						log('Prepared input image for img2img', startTime);
+					}
+				}
+
+				// We effectively use fetch here to support custom parameters like imageDataUrl
+				// which might not be typed in the OpenAI Node SDK or might be stripped.
+				// The user provided python example uses requests.post, so fetch is safe.
+
+				const payload: any = {
+					model: args.model_id,
+					prompt: args.message || 'Image',
+					response_format: 'b64_json',
+					n: 1,
+					size: '1024x1024',
+				};
+
+				if (imageDataUrl) {
+					payload.imageDataUrl = imageDataUrl;
+				}
+
+				const res = await fetch('https://nano-gpt.com/v1/images/generations', {
+					method: 'POST',
+					headers: {
+						'Authorization': `Bearer ${actualKey}`,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(payload)
+				});
+
+				if (!res.ok) {
+					const errText = await res.text();
+					throw new Error(`NanoGPT API error: ${res.status} ${errText}`);
+				}
+
+				const response = await res.json();
+
+				const image = response.data?.[0];
+				if (!image?.b64_json && !image?.url) {
+					throw new Error('No image data returned details: ' + JSON.stringify(image));
+				}
+
+				let buffer: Buffer;
+				let mimeType = 'image/png';
+
+				if (image.b64_json) {
+					buffer = Buffer.from(image.b64_json, 'base64');
+				} else if (image.url) {
+					// Fallback download
+					const imgRes = await fetch(image.url);
+					const arrayBuffer = await imgRes.arrayBuffer();
+					buffer = Buffer.from(arrayBuffer);
+					const contentType = imgRes.headers.get('content-type');
+					if (contentType) mimeType = contentType;
+				} else {
+					throw new Error('No image data');
+				}
+
+				// Ensure upload dir exists
+				const UPLOAD_DIR = join(process.cwd(), 'data', 'uploads');
+				if (!existsSync(UPLOAD_DIR)) {
+					mkdirSync(UPLOAD_DIR, { recursive: true });
+				}
+
+				const storageId = generateId();
+				const extension = mimeType.split('/')[1] || 'png';
+				const filename = `${storageId}.${extension}`;
+				const filepath = join(UPLOAD_DIR, filename);
+
+				writeFileSync(filepath, buffer);
+
+				await db.insert(storage).values({
+					id: storageId,
+					userId,
+					filename,
+					mimeType,
+					size: buffer.byteLength,
+					path: filepath,
+					createdAt: new Date(),
+				});
+
+				const imageUrl = `/api/storage/${storageId}`;
+				const markdownContent = `![Generated Image](${imageUrl})`;
+
+				await db
+					.update(messages)
+					.set({
+						content: markdownContent,
+						contentHtml: null,
+						tokenCount: 0,
+						costUsd: 0, // could attempt to parse cost from headers or response if available
+					})
+					.where(eq(messages.id, assistantMessageId));
+
+				await db
+					.update(conversations)
+					.set({
+						generating: false,
+						updatedAt: new Date(),
+					})
+					.where(eq(conversations.id, conversationId));
+
+				log('Image generation completed', startTime);
+			} catch (error) {
+				log(`Image generation failed: ${error}`, startTime);
+				await handleGenerationError({
+					error: `Image generation failed: ${error}`,
+					conversationId,
+					messageId: assistantMessageId,
+					startTime,
+				});
+			}
+		})();
+
+		return response({
+			ok: true,
+			conversation_id: conversationId,
+		});
+	}
+
 	// Create and cache AbortController for this generation
 	const abortController = new AbortController();
 	generationAbortControllers.set(conversationId, abortController);
@@ -807,7 +1032,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		conversationId,
 		userId,
 		startTime,
-		model: modelRecord,
+		model: finalModelRecord,
 		apiKey: actualKey,
 		rules: rulesRecords,
 		userSettingsData: userSettingsRecord ?? null,
@@ -831,29 +1056,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	log('Response sent, AI generation started in background', startTime);
 	return response({ ok: true, conversation_id: conversationId });
 };
-
-async function getGenerationStats(
-	generationId: string,
-	token: string
-): Promise<Result<Data, string>> {
-	try {
-		const generation = await fetch(`https://nano-gpt.com/api/v1/generation?id=${generationId}`, {
-			headers: {
-				Authorization: `Bearer ${token}`,
-			},
-		});
-
-		const { data } = await generation.json();
-
-		if (!data) {
-			return err('No data returned from NanoGPT');
-		}
-
-		return ok(data);
-	} catch {
-		return err('Failed to get generation stats');
-	}
-}
 
 async function retryResult<T, E>(
 	fn: () => Promise<Result<T, E>>,
