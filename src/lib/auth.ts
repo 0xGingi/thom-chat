@@ -22,7 +22,10 @@ export const auth = betterAuth({
 	plugins: [
 		passkey({
 			rpID: new URL(env.BETTER_AUTH_URL || 'http://localhost:3000').hostname,
-			origin: env.BETTER_AUTH_URL || 'http://localhost:3000',
+			origin: [
+				env.BETTER_AUTH_URL || 'http://localhost:3000',
+				(env.BETTER_AUTH_URL || 'http://localhost:3000').replace(/:\d+$/, '')
+			],
 			rpName: 'thom.chat',
 		})
 	],

@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="static/favicon.png" alt="thom.chat" width="180" height="180">
   <h1>thom.chat</h1>
   <p><em>Open-source self-hostable T3 Chat.</em></p>
 </div>
@@ -18,6 +17,7 @@
 - Nano-GPT Context Memory (Single Chat)
 - Cross-Conversation Memory (All Chats)
 - Nano-GPT Image Generation + img2img support
+- Passkey support (requires HTTPS)
 
 ### Ensure to run ```npx drizzle-kit push``` to upgrade your database schema when new features are added!
 

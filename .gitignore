@@ -30,3 +30,9 @@ src/lib/backend/convex/_generated
 # Local database
 /data
 .agent
+
+
+*.crt
+*.key
+Caddyfile
+docker-prod.yml

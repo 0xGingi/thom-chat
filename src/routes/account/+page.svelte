@@ -4,7 +4,9 @@
 	import { ResultAsync } from 'neverthrow';
 	import { mutate } from '$lib/client/mutation.svelte';
 	import { Switch } from '$lib/components/ui/switch';
+	import PasskeySettings from '$lib/components/account/PasskeySettings.svelte';
 
+	let { data } = $props();
 	const settings = useCachedQuery(api.user_settings.get, {});
 
 	let privacyMode = $derived(settings.data?.privacyMode ?? false);
@@ -86,4 +88,8 @@
 		</div>
 		<Switch bind:value={() => persistentMemoryEnabled, togglePersistentMemory} />
 	</div>
-</div>
+	</div>
+	
+	<div class="pt-4">
+		<PasskeySettings passkeys={data.passkeys || []} />
+	</div>

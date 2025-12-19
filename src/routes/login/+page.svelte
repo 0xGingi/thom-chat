@@ -56,6 +56,27 @@
 		}
 	}
 
+	async function handlePasskeySignIn() {
+		isLoading = true;
+		error = '';
+		try {
+			const result = await authClient.signIn.passkey({
+				fetchOptions: {
+					onSuccess: () => {
+						window.location.href = '/chat';
+					}
+				}
+			});
+			if (result?.error) {
+				error = result.error.message || 'Sign in failed';
+			}
+		} catch (e: any) {
+			error = e.message || 'Sign in failed';
+		} finally {
+			isLoading = false;
+		}
+	}
+
 	function handleKeyDown(e: KeyboardEvent) {
 		if (e.key === 'Enter' && username && password) {
 			handleSignIn();
@@ -101,6 +122,19 @@
 				Create Account
 			</Button>
 		</div>
+
+		<div class="relative">
+			<div class="absolute inset-0 flex items-center">
+				<span class="w-full border-t"></span>
+			</div>
+			<div class="relative flex justify-center text-xs uppercase">
+				<span class="bg-background px-2 text-muted-foreground"> Or continue with </span>
+			</div>
+		</div>
+
+		<Button variant="outline" onclick={handlePasskeySignIn} disabled={isLoading} class="w-full">
+			Passkey
+		</Button>
 
 		<p class="text-center text-xs text-muted-foreground pt-2">
 			You can add a passkey for passwordless login in your account settings after signing in.

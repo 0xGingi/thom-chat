@@ -8,6 +8,6 @@ services:
     env_file:
       - .env
     environment:
-      - ORIGIN=http://100.125.232.16:3432
-      - BETTER_AUTH_URL=http://100.125.232.16:3432
+      - ORIGIN=${BETTER_AUTH_URL}
+      - BETTER_AUTH_URL=${BETTER_AUTH_URL}
     restart: unless-stopped
