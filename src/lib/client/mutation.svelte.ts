@@ -1,4 +1,4 @@
-import { invalidateQuery, invalidateQueryPattern } from './query.svelte';
+import { invalidateQuery, invalidateQueryPattern } from '$lib/cache/cached-query.svelte';
 
 export interface MutationResult<T> {
     data: T | undefined;

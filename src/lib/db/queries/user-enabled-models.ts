@@ -103,6 +103,12 @@ export function isPinned(model: UserEnabledModel): boolean {
 }
 
 export async function enableInitialModels(userId: string): Promise<void> {
+    const existingModels = await db.query.userEnabledModels.findMany({
+        where: eq(userEnabledModels.userId, userId),
+    });
+
+    if (existingModels.length > 0) return;
+
     const now = new Date();
     const initialModels = [
         'zai-org/glm-4.6v',
@@ -112,22 +118,6 @@ export async function enableInitialModels(userId: string): Promise<void> {
         'google/gemini-3-flash-preview',
         'gpt-5-mini'
     ];
-
-    // Remove any leftover OpenRouter models or non-default NanoGPT models
-    await db
-        .delete(userEnabledModels)
-        .where(
-            and(
-                eq(userEnabledModels.userId, userId),
-                not(inArray(userEnabledModels.modelId, initialModels))
-            )
-        );
-
-    const existingModels = await db.query.userEnabledModels.findMany({
-        where: eq(userEnabledModels.userId, userId),
-    });
-
-    if (existingModels.length > 0) return;
 
     await db.insert(userEnabledModels).values(
         initialModels.map((modelId) => ({

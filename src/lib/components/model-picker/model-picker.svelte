@@ -56,6 +56,7 @@
 	const currentModel = $derived(enabledArr.find((m) => m.modelId === settings.modelId));
 
 	$effect(() => {
+		if (enabledModelsQuery.isLoading) return;
 		if (!enabledArr.find((m) => m.modelId === settings.modelId) && enabledArr.length > 0) {
 			settings.modelId = enabledArr[0]!.modelId;
 		}
