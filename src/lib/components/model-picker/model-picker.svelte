@@ -50,6 +50,12 @@
 			haystack: enabledArr,
 			needle: search,
 			property: 'modelId',
+		}).sort((a, b) => {
+			const aPinned = isPinned(a);
+			const bPinned = isPinned(b);
+			if (aPinned && !bPinned) return -1;
+			if (!aPinned && bPinned) return 1;
+			return 0;
 		})
 	);
 
@@ -108,6 +114,8 @@
 			mutate(api.user_enabled_models.toggle_pinned.url, {
 				action: 'togglePinned',
 				modelId,
+			}, {
+				invalidatePatterns: [api.user_enabled_models.get_enabled.url]
 			}),
 			(e) => e
 		);
