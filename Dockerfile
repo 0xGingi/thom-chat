@@ -22,6 +22,9 @@ WORKDIR /app
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json ./package.json
 
+# Copy migrations
+COPY --from=builder /app/drizzle ./drizzle
+
 # Copy node_modules (production only) - actually adapter-node bundles deps usually, checking...
 # SvelteKit adapter-node creates a standalone build but requires deps in node_modules for some things unless bundled.
 # To be safe, let's copy node_modules from builder or reinstall prod deps.

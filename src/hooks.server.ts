@@ -8,3 +8,16 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	return svelteKitHandler({ event, resolve, auth });
 };
+
+import { building } from '$app/environment';
+import { migrate } from 'drizzle-orm/bun-sqlite/migrator';
+import { db } from '$lib/db';
+
+if (!building) {
+	try {
+		// Run migrations on startup
+		migrate(db, { migrationsFolder: 'drizzle' });
+	} catch (e) {
+		console.warn('Migration failed (database might be already up to date):', e);
+	}
+}
