@@ -8,6 +8,7 @@
 	import { ImageModal } from '$lib/components/ui/image-modal';
 	import { LightSwitch } from '$lib/components/ui/light-switch/index.js';
 	import { ShareButton } from '$lib/components/ui/share-button';
+	import { ExportButton } from '$lib/components/ui/export-button';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import Tooltip from '$lib/components/ui/tooltip.svelte';
 	import { cmdOrCtrl } from '$lib/hooks/is-mac.svelte.js';
@@ -519,6 +520,7 @@
 			})}
 		>
 			{#if page.params.id && currentConversationQuery.data}
+				<ExportButton conversationId={page.params.id} />
 				<ShareButton conversationId={page.params.id as Id<'conversations'>} />
 			{/if}
 			<Tooltip>
