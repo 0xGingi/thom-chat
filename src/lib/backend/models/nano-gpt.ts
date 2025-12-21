@@ -18,6 +18,10 @@ export interface NanoGPTModel {
         output_modalities: string[];
         tokenizer: string;
     };
+    subscription?: {
+        included: boolean;
+        note: string;
+    };
 }
 
 export function getNanoGPTModels() {
@@ -51,6 +55,11 @@ export function getNanoGPTModels() {
                     completion: String(m.pricing.completion ?? 0),
                     image: '0',
                     request: '0'
+                } : undefined,
+                // Subscription info from API
+                subscription: m.subscription ? {
+                    included: m.subscription.included ?? false,
+                    note: m.subscription.note ?? ''
                 } : undefined,
             })) : [];
 

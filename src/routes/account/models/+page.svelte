@@ -10,6 +10,7 @@
 	import { Toggle } from 'melt/builders';
 	import PlusIcon from '~icons/lucide/plus';
 	import XIcon from '~icons/lucide/x';
+	import TicketIcon from '~icons/lucide/ticket';
 	import ModelCard from './model-card.svelte';
 	import { supportsImages, supportsReasoning } from '$lib/utils/model-capabilities';
 
@@ -29,6 +30,10 @@
 		disabled: true,
 	});
 
+	const subscriptionToggle = new Toggle({
+		value: false,
+	});
+
 
 
 
@@ -46,10 +51,10 @@
 	const nanoGPTModels = $derived(
 		fuzzysearch({
 			haystack: models.from(Provider.NanoGPT).filter((m) => {
-
-
-
-
+				// Filter by subscription if toggle is enabled
+				if (subscriptionToggle.value && !m.subscription?.included) {
+					return false;
+				}
 				return true;
 			}),
 			needle: search,
@@ -85,8 +90,16 @@
 			<XIcon class="inline size-3 group-aria-[pressed=false]:hidden" />
 			<PlusIcon class="inline size-3 group-aria-[pressed=true]:hidden" />
 		</button>
-
-
+		<button
+			{...subscriptionToggle.trigger}
+			aria-label="Subscription Only"
+			class="group text-primary-foreground bg-yellow-500 aria-[pressed=false]:border-border border-yellow-500 aria-[pressed=false]:bg-background aria-[pressed=false]:text-foreground flex place-items-center gap-1 rounded-full border px-2 py-1 text-xs transition-all"
+		>
+			<TicketIcon class="inline size-3" />
+			Subscription
+			<XIcon class="inline size-3 group-aria-[pressed=false]:hidden" />
+			<PlusIcon class="inline size-3 group-aria-[pressed=true]:hidden" />
+		</button>
 	</div>
 </div>
 

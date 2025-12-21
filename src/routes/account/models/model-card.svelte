@@ -13,6 +13,8 @@
 	import EyeIcon from '~icons/lucide/eye';
 	import BrainIcon from '~icons/lucide/brain';
 	import VideoIcon from '~icons/lucide/video';
+	import TicketIcon from '~icons/lucide/ticket';
+
 
 	type Model = {
 		id: string;
@@ -105,6 +107,19 @@
 						</div>
 					{/snippet}
 					Supports video generation
+				</Tooltip>
+			{/if}
+			{#if model && provider === 'nanogpt' && model.subscription?.included}
+				<Tooltip>
+					{#snippet trigger(tooltip)}
+						<div
+							{...tooltip.trigger}
+							class="rounded-md border-yellow-500 bg-yellow-500/50 p-1 text-yellow-400"
+						>
+							<TicketIcon class="size-3" />
+						</div>
+					{/snippet}
+					{model.subscription.note || 'Included in subscription'}
 				</Tooltip>
 			{/if}
 		</div>
