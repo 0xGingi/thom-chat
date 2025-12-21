@@ -15,6 +15,7 @@
 	import ExternalLinkIcon from '~icons/lucide/external-link';
 	import ShareIcon from '~icons/lucide/share';
 	import XIcon from '~icons/lucide/x';
+	import BookmarkIcon from '~icons/lucide/bookmark';
 
 	const clipboard = new UseClipboard();
 
@@ -26,9 +27,18 @@
 		id: conversationId,
 	}));
 
+	const settingsQuery = useCachedQuery(api.user_settings.get, {});
+
 	let isPublic = $derived(Boolean(conversationQuery.data?.public));
 	let isToggling = $state(false);
 	let open = $state(false);
+	let karakeepSaving = $state(false);
+	let karakeepStatus = $state<'idle' | 'success' | 'error'>('idle');
+	let karakeepMessage = $state('');
+
+	const hasKarakeepConfig = $derived(
+		Boolean(settingsQuery.data?.karakeepUrl && settingsQuery.data?.karakeepApiKey)
+	);
 
 	const popover = new Popover({
 		open: () => open,
@@ -74,6 +84,42 @@
 
 	function copyShareUrl() {
 		clipboard.copy(shareUrl);
+	}
+
+	async function saveToKarakeep() {
+		if (!session.current?.session.token) return;
+
+		karakeepSaving = true;
+		karakeepStatus = 'idle';
+		karakeepMessage = '';
+
+		const result = await ResultAsync.fromPromise(
+			fetch('/api/karakeep/save-chat', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ conversationId }),
+			}),
+			(e) => e
+		);
+
+		karakeepSaving = false;
+
+		if (result.isErr() || !result.value.ok) {
+			karakeepStatus = 'error';
+			const errorText = result.isErr()
+				? result.error.message
+				: await result.value.text();
+			karakeepMessage = `Failed to save: ${errorText}`;
+		} else {
+			karakeepStatus = 'success';
+			karakeepMessage = 'Chat saved to Karakeep successfully!';
+			setTimeout(() => {
+				karakeepStatus = 'idle';
+				karakeepMessage = '';
+			}, 3000);
+		}
 	}
 </script>
 
@@ -136,6 +182,33 @@
 			<p class="text-muted-foreground text-xs">
 				Enable public sharing to generate a shareable link
 			</p>
+		{/if}
+
+		{#if hasKarakeepConfig}
+			<div class="border-border border-t pt-4">
+				<p class="mb-2 text-sm font-medium">Save to Karakeep</p>
+				<p class="text-muted-foreground mb-3 text-xs">
+					Save this conversation as a markdown bookmark in Karakeep
+				</p>
+				<Button
+					onclick={saveToKarakeep}
+					disabled={karakeepSaving}
+					variant="outline"
+					class="w-full"
+				>
+					<BookmarkIcon class="mr-2 size-4" />
+					{karakeepSaving ? 'Saving...' : 'Save to Karakeep'}
+				</Button>
+				{#if karakeepStatus !== 'idle' && karakeepMessage}
+					<div
+						class="mt-2 rounded-md p-2 text-xs {karakeepStatus === 'success'
+							? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-300'
+							: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-300'}"
+					>
+						{karakeepMessage}
+					</div>
+				{/if}
+			</div>
 		{/if}
 	</div>
 </div>

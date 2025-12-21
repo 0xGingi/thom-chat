@@ -30,6 +30,8 @@ export const POST: RequestHandler = async ({ request }) => {
                 privacyMode: body.privacyMode,
                 contextMemoryEnabled: body.contextMemoryEnabled,
                 persistentMemoryEnabled: body.persistentMemoryEnabled,
+                karakeepUrl: body.karakeepUrl,
+                karakeepApiKey: body.karakeepApiKey,
             });
             return json(settings);
         }

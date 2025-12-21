@@ -1,6 +1,6 @@
 import { db, generateId } from '../index';
 import { messages, conversations, type Message } from '../schema';
-import { eq } from 'drizzle-orm';
+import { eq, asc } from 'drizzle-orm';
 
 export async function createMessage(
     conversationId: string,
@@ -101,4 +101,12 @@ export async function getMessageById(messageId: string): Promise<Message | null>
         where: eq(messages.id, messageId),
     });
     return result ?? null;
+}
+
+export async function getMessagesByConversation(conversationId: string): Promise<Message[]> {
+    const result = await db.query.messages.findMany({
+        where: eq(messages.conversationId, conversationId),
+        orderBy: [asc(messages.createdAt)],
+    });
+    return result;
 }
