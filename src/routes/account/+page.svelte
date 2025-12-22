@@ -186,6 +186,13 @@
 				</div>
 				<Switch bind:value={() => persistentMemoryEnabled, togglePersistentMemory} />
 			</div>
+			<div class="flex place-items-center justify-between">
+		        <div class="flex flex-col gap-1">
+					<span>YouTube Transcripts</span>
+			    	<span class="text-muted-foreground text-sm">Automatically fetch YouTube video transcripts ($0.01 each).</span>
+				</div>
+		<Switch bind:value={() => youtubeTranscriptsEnabled, toggleYoutubeTranscripts} />
+	</div>
 		</CardContent>
 	</Card>
 
