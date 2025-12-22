@@ -3,7 +3,7 @@ FROM oven/bun:1 AS builder
 WORKDIR /app
 
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install
 
 COPY . .
 
@@ -18,17 +18,15 @@ FROM oven/bun:1
 
 WORKDIR /app
 
-# Copy built artifacts and dependencies
+# Copy built artifacts
 COPY --from=builder /app/build ./build
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/bun.lock ./bun.lock
 
 # Copy migrations
 COPY --from=builder /app/drizzle ./drizzle
 
-# Copy node_modules (production only) - actually adapter-node bundles deps usually, checking...
-# SvelteKit adapter-node creates a standalone build but requires deps in node_modules for some things unless bundled.
-# To be safe, let's copy node_modules from builder or reinstall prod deps.
-COPY --from=builder /app/node_modules ./node_modules
+RUN --mount=type=cache,target=/root/.bun/install/cache bun install
 
 EXPOSE 3000
 
