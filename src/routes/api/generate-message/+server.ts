@@ -1,4 +1,3 @@
-
 import type { Doc } from '$lib/db/types';
 import { db, generateId } from '$lib/db';
 import {
@@ -25,7 +24,14 @@ import { md } from '$lib/utils/markdown-it.js';
 import * as array from '$lib/utils/array';
 import { parseMessageForRules } from '$lib/utils/rules.js';
 import { performNanoGPTWebSearch } from '$lib/backend/web-search';
-import { scrapeUrlsFromMessage } from '$lib/backend/url-scraper';
+import {
+	scrapeUrlsFromMessage,
+	extractUrlsByType,
+	scrapeUrls,
+	formatScrapedContent,
+} from '$lib/backend/url-scraper';
+import { processYouTubeUrls } from '$lib/backend/youtube-transcript';
+import { getOrCreateUserSettings } from '$lib/db/queries/user-settings';
 import { getUserMemory, upsertUserMemory } from '$lib/db/queries/user-memories';
 import { getNanoGPTModels } from '$lib/backend/models/nano-gpt';
 import { supportsVideo } from '$lib/utils/model-capabilities';
@@ -84,9 +90,7 @@ function log(message: string, startTime: number): void {
 }
 
 // Helper to get user ID from session token
-async function getUserIdFromSession(
-	sessionToken: string
-): Promise<Result<string, string>> {
+async function getUserIdFromSession(sessionToken: string): Promise<Result<string, string>> {
 	try {
 		// Query the session table to get user ID
 		const session = await db.query.session.findFirst({
@@ -277,22 +281,54 @@ async function generateAIResponse({
 		}
 	}
 
-	// Scrape URLs from the user message if any are present
+	// Scrape URLs and process YouTube transcripts
 	let scrapedContent: string = '';
 	let scrapeCost = 0;
+	let youtubeCost = 0;
+	let youtubeWarningMessage = '';
 
 	if (lastUserMessage) {
-		log('Background: Checking for URLs to scrape', startTime);
-		try {
-			const scrapeResult = await scrapeUrlsFromMessage(lastUserMessage.content, apiKey);
-			scrapedContent = scrapeResult.content;
+		log('Background: Checking for URLs to process', startTime);
 
-			if (scrapeResult.successCount > 0) {
-				scrapeCost = scrapeResult.successCount * 0.001;
-				log(`Background: URL scraping completed (${scrapeResult.successCount} URLs, $${scrapeCost})`, startTime);
+		// Get user settings
+		const userSettings = await getOrCreateUserSettings(userId);
+		const youtubeEnabled = userSettings.youtubeTranscriptsEnabled;
+
+		try {
+			// Separate URLs by type
+			const { regularUrls, youtubeUrls } = extractUrlsByType(lastUserMessage.content);
+
+			// Process regular URLs
+			if (regularUrls.length > 0) {
+				log(`Background: Processing ${regularUrls.length} regular URLs`, startTime);
+				const scrapeResult = await scrapeUrls(regularUrls, apiKey);
+				if (scrapeResult) {
+					scrapedContent += formatScrapedContent(scrapeResult.results);
+					scrapeCost = scrapeResult.summary.successful * 0.001;
+				}
+			}
+
+			// Process YouTube URLs
+			if (youtubeUrls.length > 0) {
+				log(
+					`Background: Processing ${youtubeUrls.length} YouTube URLs: ${youtubeUrls.join(', ')}`,
+					startTime
+				);
+				if (youtubeEnabled) {
+					const youtubeResult = await processYouTubeUrls(youtubeUrls, apiKey);
+
+					scrapedContent += youtubeResult.content;
+					youtubeCost = youtubeResult.cost;
+					log(
+						`Background: YouTube transcripts completed (${youtubeResult.successCount} videos, $${youtubeCost})`,
+						startTime
+					);
+				} else {
+					youtubeWarningMessage = `Note: YouTube URLs were detected but transcript extraction is disabled. Enable in Settings to include video content in responses.`;
+				}
 			}
 		} catch (e) {
-			log(`Background: URL scraping failed: ${e}`, startTime);
+			log(`Background: URL processing failed: ${e}`, startTime);
 		}
 	}
 
@@ -439,6 +475,11 @@ async function generateAIResponse({
 		systemContent += scrapedContent;
 	}
 
+	// Add YouTube warning if needed
+	if (youtubeWarningMessage) {
+		systemContent += `\n\n${youtubeWarningMessage}\n\n`;
+	}
+
 	if (searchContext) {
 		systemContent += `${searchContext}\n\nInstructions: Use the above search results to answer the user's query. Cite your sources where possible. If the results are not relevant, you can ignore them.\n\n`;
 	}
@@ -457,11 +498,11 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 			const memoryResponse = await fetch('https://nano-gpt.com/api/v1/memory', {
 				method: 'POST',
 				headers: {
-					'Authorization': `Bearer ${apiKey}`,
+					Authorization: `Bearer ${apiKey}`,
 					'Content-Type': 'application/json',
 				},
 				body: JSON.stringify({
-					messages: formattedMessages.map(m => ({
+					messages: formattedMessages.map((m) => ({
 						role: m.role,
 						content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
 					})),
@@ -473,13 +514,22 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 				const memoryData = await memoryResponse.json();
 				if (memoryData.messages && Array.isArray(memoryData.messages)) {
 					finalMessages = memoryData.messages;
-					log(`Background: Context memory compression applied, reduced to ${finalMessages.length} messages`, startTime);
+					log(
+						`Background: Context memory compression applied, reduced to ${finalMessages.length} messages`,
+						startTime
+					);
 				}
 			} else {
-				log(`Background: Context memory API returned ${memoryResponse.status}, using original messages`, startTime);
+				log(
+					`Background: Context memory API returned ${memoryResponse.status}, using original messages`,
+					startTime
+				);
 			}
 		} catch (e) {
-			log(`Background: Context memory compression failed: ${e}, using original messages`, startTime);
+			log(
+				`Background: Context memory compression failed: ${e}, using original messages`,
+				startTime
+			);
 		}
 	}
 
@@ -487,12 +537,12 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 	const messagesToSend =
 		systemContent.length > 0
 			? [
-				...finalMessages,
-				{
-					role: 'system' as const,
-					content: systemContent,
-				},
-			]
+					...finalMessages,
+					{
+						role: 'system' as const,
+						content: systemContent,
+					},
+				]
 			: finalMessages;
 
 	if (abortSignal?.aborted) {
@@ -540,7 +590,8 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 	let chunkCount = 0;
 	let generationId: string | null = null;
 	const annotations: Annotation[] = [];
-	let usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null = null;
+	let usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | null =
+		null;
 
 	try {
 		for await (const chunk of stream) {
@@ -613,10 +664,16 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 					const completionTokens = usage.completion_tokens ?? 0;
 
 					// Calculate cost: (tokens / 1M) * price_per_million + tool costs
-					const tokenCost = (promptTokens * promptPricePerMillion + completionTokens * completionPricePerMillion) / 1_000_000;
-					costUsd = tokenCost + webSearchCost + scrapeCost;
+					const tokenCost =
+						(promptTokens * promptPricePerMillion + completionTokens * completionPricePerMillion) /
+						1_000_000;
+					const totalUrlCost = scrapeCost + youtubeCost;
+					costUsd = tokenCost + webSearchCost + totalUrlCost;
 
-					log(`Background: Calculated cost: $${costUsd.toFixed(6)} (prompt: ${promptTokens}, completion: ${completionTokens}, search: $${webSearchCost}, scrape: $${scrapeCost})`, startTime);
+					log(
+						`Background: Calculated cost: $${costUsd.toFixed(6)} (prompt: ${promptTokens}, completion: ${completionTokens}, search: $${webSearchCost}, scrape: $${scrapeCost}, youtube: $${youtubeCost})`,
+						startTime
+					);
 				}
 			}
 		} else {
@@ -650,7 +707,6 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 			})
 			.where(eq(conversations.id, conversationId));
 
-
 		// Update persistent memory if enabled
 		if (userSettingsData?.persistentMemoryEnabled) {
 			log('Background: Updating persistent memory', startTime);
@@ -658,7 +714,7 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 				// Include the new messages in memory compression
 				const allMessages = [
 					...(storedMemory ? [{ role: 'system' as const, content: storedMemory }] : []),
-					...formattedMessages.map(m => ({
+					...formattedMessages.map((m) => ({
 						role: m.role as 'user' | 'assistant' | 'system',
 						content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
 					})),
@@ -668,7 +724,7 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 				const memoryResponse = await fetch('https://nano-gpt.com/api/v1/memory', {
 					method: 'POST',
 					headers: {
-						'Authorization': `Bearer ${apiKey}`,
+						Authorization: `Bearer ${apiKey}`,
 						'Content-Type': 'application/json',
 					},
 					body: JSON.stringify({
@@ -682,7 +738,10 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 					if (memoryData.messages?.[0]?.content) {
 						const compressedMemory = memoryData.messages[0].content;
 						await upsertUserMemory(userId, compressedMemory, memoryData.usage?.total_tokens);
-						log(`Background: Persistent memory updated (${compressedMemory.length} chars)`, startTime);
+						log(
+							`Background: Persistent memory updated (${compressedMemory.length} chars)`,
+							startTime
+						);
 					}
 				} else {
 					log(`Background: Memory API returned ${memoryResponse.status}`, startTime);
@@ -799,14 +858,14 @@ async function generateVideoResponse({
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				'x-api-key': apiKey
+				'x-api-key': apiKey,
 			},
 			body: JSON.stringify({
 				model: model.modelId,
 				prompt: prompt,
 				...(imageDataUrl ? { imageDataUrl } : {}),
-				...(imageUrl ? { imageUrl } : {})
-			})
+				...(imageUrl ? { imageUrl } : {}),
+			}),
 		});
 
 		if (!response.ok) {
@@ -830,9 +889,12 @@ async function generateVideoResponse({
 
 			await new Promise((resolve) => setTimeout(resolve, delayMs));
 
-			const statusRes = await fetch(`https://nano-gpt.com/api/generate-video/status?runId=${runId}&modelSlug=${model.modelId}`, {
-				headers: { 'x-api-key': apiKey }
-			});
+			const statusRes = await fetch(
+				`https://nano-gpt.com/api/generate-video/status?runId=${runId}&modelSlug=${model.modelId}`,
+				{
+					headers: { 'x-api-key': apiKey },
+				}
+			);
 
 			if (!statusRes.ok) continue;
 
@@ -840,7 +902,8 @@ async function generateVideoResponse({
 			const status = statusData.data?.status || statusData.status; // backend returns data.status
 
 			if (status === 'COMPLETED' || status === 'succeeded') {
-				let videoUrl = statusData.data?.output?.video?.url || statusData.output?.video?.url || statusData.url;
+				let videoUrl =
+					statusData.data?.output?.video?.url || statusData.output?.video?.url || statusData.url;
 
 				if (videoUrl && videoUrl.startsWith('/')) {
 					videoUrl = `https://nano-gpt.com${videoUrl}`;
@@ -849,12 +912,13 @@ async function generateVideoResponse({
 					const statusCost = statusData.data?.cost || statusData.cost;
 					const videoCost = statusCost !== undefined ? statusCost : initialCost;
 
-					await db.update(messages)
+					await db
+						.update(messages)
 						.set({
 							content: `Here is your video:\n\n${videoUrl}`,
 							contentHtml: `<video src="${videoUrl}" controls class="max-w-full rounded-lg"></video>`,
 							generationId: runId,
-							costUsd: videoCost
+							costUsd: videoCost,
 						})
 						.where(eq(messages.id, assistantMessageId));
 
@@ -874,7 +938,6 @@ async function generateVideoResponse({
 				throw new Error(statusData.data?.error || 'Video generation failed');
 			}
 		}
-
 	} catch (e: any) {
 		await handleGenerationError({
 			error: `Video generation failed: ${e.message}`,
@@ -895,8 +958,6 @@ async function generateVideoResponse({
 		generationAbortControllers.delete(conversationId);
 	}
 }
-
-
 
 export const POST: RequestHandler = async ({ request }) => {
 	const startTime = Date.now();
@@ -1044,9 +1105,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			content: args.message,
 			role: 'user',
 			images: args.images ?? null,
-			webSearchEnabled: args.web_search_mode && args.web_search_mode !== 'off'
-				? true
-				: args.web_search_enabled ?? false,
+			webSearchEnabled:
+				args.web_search_mode && args.web_search_mode !== 'off'
+					? true
+					: (args.web_search_enabled ?? false),
 			createdAt: now,
 		});
 
@@ -1084,9 +1146,10 @@ export const POST: RequestHandler = async ({ request }) => {
 				modelId: args.model_id,
 				reasoningEffort: args.reasoning_effort,
 				images: args.images ?? null,
-				webSearchEnabled: args.web_search_mode && args.web_search_mode !== 'off'
-					? true
-					: args.web_search_enabled ?? false,
+				webSearchEnabled:
+					args.web_search_mode && args.web_search_mode !== 'off'
+						? true
+						: (args.web_search_enabled ?? false),
 				createdAt: new Date(),
 			});
 
@@ -1165,10 +1228,10 @@ export const POST: RequestHandler = async ({ request }) => {
 				const res = await fetch('https://nano-gpt.com/v1/images/generations', {
 					method: 'POST',
 					headers: {
-						'Authorization': `Bearer ${actualKey}`,
+						Authorization: `Bearer ${actualKey}`,
 						'Content-Type': 'application/json',
 					},
-					body: JSON.stringify(payload)
+					body: JSON.stringify(payload),
 				});
 
 				if (!res.ok) {
@@ -1294,7 +1357,10 @@ export const POST: RequestHandler = async ({ request }) => {
 				log(`Background Video response generation error: ${error}`, startTime);
 				// Reset generating status on error
 				try {
-					await db.update(conversations).set({ generating: false }).where(eq(conversations.id, conversationId));
+					await db
+						.update(conversations)
+						.set({ generating: false })
+						.where(eq(conversations.id, conversationId));
 				} catch (e) {
 					log(`Failed to reset generating status after error: ${e}`, startTime);
 				}
@@ -1314,14 +1380,18 @@ export const POST: RequestHandler = async ({ request }) => {
 			userSettingsData: userSettingsRecord ?? null,
 			abortSignal: abortController.signal,
 			reasoningEffort: args.reasoning_effort,
-			webSearchDepth: args.web_search_mode && args.web_search_mode !== 'off' ? args.web_search_mode : undefined,
+			webSearchDepth:
+				args.web_search_mode && args.web_search_mode !== 'off' ? args.web_search_mode : undefined,
 			webSearchProvider: args.web_search_provider,
 		})
 			.catch(async (error) => {
 				log(`Background AI response generation error: ${error}`, startTime);
 				// Reset generating status on error
 				try {
-					await db.update(conversations).set({ generating: false }).where(eq(conversations.id, conversationId));
+					await db
+						.update(conversations)
+						.set({ generating: false })
+						.where(eq(conversations.id, conversationId));
 				} catch (e) {
 					log(`Failed to reset generating status after error: ${e}`, startTime);
 				}
@@ -1379,14 +1449,14 @@ async function handleGenerationError({
 
 	// Update message with error if we have a message ID
 	if (messageId) {
-		await db
-			.update(messages)
-			.set({ error })
-			.where(eq(messages.id, messageId));
+		await db.update(messages).set({ error }).where(eq(messages.id, messageId));
 	}
 
 	// Update conversation generating status
-	await db.update(conversations).set({ generating: false }).where(eq(conversations.id, conversationId));
+	await db
+		.update(conversations)
+		.set({ generating: false })
+		.where(eq(conversations.id, conversationId));
 
 	log('Error updated', startTime);
 }

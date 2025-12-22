@@ -86,6 +86,7 @@ export const userSettings = sqliteTable(
         privacyMode: integer('privacy_mode', { mode: 'boolean' }).notNull().default(false),
         contextMemoryEnabled: integer('context_memory_enabled', { mode: 'boolean' }).notNull().default(false),
         persistentMemoryEnabled: integer('persistent_memory_enabled', { mode: 'boolean' }).notNull().default(false),
+        youtubeTranscriptsEnabled: integer('youtube_transcripts_enabled', { mode: 'boolean' }).notNull().default(false),
         freeMessagesUsed: integer('free_messages_used').default(0),
         karakeepUrl: text('karakeep_url'),
         karakeepApiKey: text('karakeep_api_key'),

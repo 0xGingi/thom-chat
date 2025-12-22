@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { useCachedQuery, api, invalidateQueryPattern } from '$lib/cache/cached-query.svelte.js';
+import { extractUrlsByType } from '$lib/backend/url-scraper';
 	import type { Doc, Id } from '$lib/db/types';
 	import AppSidebar from '$lib/components/app-sidebar.svelte';
 	import { Button } from '$lib/components/ui/button';
@@ -155,6 +156,31 @@
 	);
 
 	let error = $state<string | null>(null);
+	let youtubeUrlDetected = $state(false);
+
+	// Load settings for YouTube transcripts
+	const userSettings = useCachedQuery(api.user_settings.get, {});
+	const transcriptsEnabled = $derived(userSettings.data?.youtubeTranscriptsEnabled ?? false);
+
+	// Import messages API to check for YouTube URLs
+	const messages = useCachedQuery(api.messages.getAllFromConversation, () => ({
+		conversationId: page.params.id ?? '',
+	}));
+
+	// Check for YouTube URLs in the last user message
+	$effect(() => {
+		if (messages.data) {
+			const userMessages = messages.data.filter(m => m.role === 'user');
+			const lastUserMessage = userMessages[userMessages.length - 1];
+			
+			if (lastUserMessage) {
+				const { youtubeUrls } = extractUrlsByType(lastUserMessage.content);
+				youtubeUrlDetected = youtubeUrls.length > 0;
+			} else {
+				youtubeUrlDetected = false;
+			}
+		}
+	});
 
 	async function handleSubmit() {
 		if (isGenerating) return;
@@ -627,6 +653,16 @@
 							>
 								<div class="rounded-lg bg-red-500/50 px-3 py-1 text-sm text-red-100">
 									{error}
+								</div>
+							</div>
+						{/if}
+						{#if youtubeUrlDetected && !transcriptsEnabled}
+							<div
+								in:fade={{ duration: 150 }}
+								class="bg-background absolute top-0 left-0 {error ? '-translate-y-20' : '-translate-y-12'} rounded-lg"
+							>
+								<div class="rounded-lg bg-yellow-500/50 px-3 py-1 text-sm text-yellow-100">
+									YouTube transcripts are disabled. Enable in Settings to include video content.
 								</div>
 							</div>
 						{/if}

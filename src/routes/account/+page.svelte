@@ -23,6 +23,7 @@
 	let privacyMode = $derived(settings.data?.privacyMode ?? false);
 	let contextMemoryEnabled = $derived(settings.data?.contextMemoryEnabled ?? false);
 	let persistentMemoryEnabled = $derived(settings.data?.persistentMemoryEnabled ?? false);
+	let youtubeTranscriptsEnabled = $derived(settings.data?.youtubeTranscriptsEnabled ?? false);
 
 	let karakeepUrl = $state(settings.data?.karakeepUrl ?? '');
 	let karakeepApiKey = $state(settings.data?.karakeepApiKey ?? '');
@@ -79,6 +80,21 @@
 		);
 
 		if (res.isErr()) persistentMemoryEnabled = !v;
+	}
+
+	async function toggleYoutubeTranscripts(v: boolean) {
+		youtubeTranscriptsEnabled = v;
+		if (!session.current?.user.id) return;
+
+		const res = await ResultAsync.fromPromise(
+			mutate(api.user_settings.set.url, {
+				action: 'update',
+				youtubeTranscriptsEnabled: v,
+			}),
+			(e) => e
+		);
+
+		if (res.isErr()) youtubeTranscriptsEnabled = !v;
 	}
 
 	async function saveKarakeepSettings() {

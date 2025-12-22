@@ -1,0 +1,1 @@
+ALTER TABLE `user_settings` ADD `youtube_transcripts_enabled` integer DEFAULT false NOT NULL;
