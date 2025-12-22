@@ -85,6 +85,13 @@
       "when": 1766343032105,
       "tag": "0011_rapid_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1766407972412,
+      "tag": "0012_silky_cable",
+      "breakpoints": true
     }
   ]
 }

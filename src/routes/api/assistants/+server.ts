@@ -24,6 +24,9 @@ export async function GET({ locals }: RequestEvent) {
             name: 'Default',
             systemPrompt: '',
             isDefault: true,
+            defaultModelId: null,
+            defaultWebSearchMode: null,
+            defaultWebSearchProvider: null,
             createdAt: new Date(),
             updatedAt: new Date(),
         };
@@ -38,6 +41,9 @@ export async function GET({ locals }: RequestEvent) {
 const createAssistantSchema = z.object({
     name: z.string().min(1).max(100),
     systemPrompt: z.string().max(10000),
+    defaultModelId: z.string().optional(),
+    defaultWebSearchMode: z.enum(['off', 'standard', 'deep']).optional(),
+    defaultWebSearchProvider: z.enum(['linkup', 'tavily']).optional(),
 });
 
 export async function POST({ request, locals }: RequestEvent) {
@@ -59,7 +65,7 @@ export async function POST({ request, locals }: RequestEvent) {
         return json({ error: result.error.flatten() }, { status: 400 });
     }
 
-    const { name, systemPrompt } = result.data;
+    const { name, systemPrompt, defaultModelId, defaultWebSearchMode, defaultWebSearchProvider } = result.data;
 
     const newAssistant = {
         id: generateId(),
@@ -67,6 +73,9 @@ export async function POST({ request, locals }: RequestEvent) {
         name,
         systemPrompt,
         isDefault: false,
+        defaultModelId: defaultModelId ?? null,
+        defaultWebSearchMode: defaultWebSearchMode ?? null,
+        defaultWebSearchProvider: defaultWebSearchProvider ?? null,
         createdAt: new Date(),
         updatedAt: new Date(),
     };
@@ -75,3 +84,4 @@ export async function POST({ request, locals }: RequestEvent) {
 
     return json(newAssistant);
 }
+

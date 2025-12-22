@@ -86,6 +86,30 @@
 		assistantsQuery.data?.find((a: any) => a.id === selectedAssistantId.current)
 	);
 
+	// Apply assistant defaults when switching assistants
+	let previousAssistantId = $state<string | null>(null);
+	
+	$effect(() => {
+		const currentId = selectedAssistantId.current;
+		const assistant = selectedAssistant;
+		
+		// Only apply defaults when actually switching to a different assistant
+		if (currentId && currentId !== previousAssistantId && assistant) {
+			previousAssistantId = currentId;
+			
+			// Apply defaults if configured
+			if (assistant.defaultModelId) {
+				settings.modelId = assistant.defaultModelId;
+			}
+			if (assistant.defaultWebSearchMode) {
+				settings.webSearchMode = assistant.defaultWebSearchMode as 'off' | 'standard' | 'deep';
+			}
+			if (assistant.defaultWebSearchProvider) {
+				settings.webSearchProvider = assistant.defaultWebSearchProvider as 'linkup' | 'tavily';
+			}
+		}
+	});
+
 	const currentConversationQuery = useCachedQuery(api.conversations.getById, () => ({
 		id: page.params.id,
 	}));

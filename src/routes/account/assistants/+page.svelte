@@ -3,6 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { api, useCachedQuery, invalidateQueryPattern } from '$lib/cache/cached-query.svelte.js';
 	import { session } from '$lib/state/session.svelte.js';
+	import { models } from '$lib/state/models.svelte';
+	import { Provider } from '$lib/types';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Card from '$lib/components/ui/card';
 	import Input from '$lib/components/ui/input/input.svelte';
@@ -16,6 +18,11 @@
 	import Save from '~icons/lucide/save';
 	import Star from '~icons/lucide/star';
 
+	models.init();
+
+	const enabledModelsQuery = useCachedQuery(api.user_enabled_models.get_enabled, {});
+	const enabledModels = $derived(Object.values(enabledModelsQuery.data ?? {}) as { id: string; modelId: string }[]);
+
 	const assistantsQuery = useCachedQuery(api.assistants.list, {
 		session_token: session.current?.session.token ?? '',
 	});
@@ -28,12 +35,18 @@
 
 	let formName = $state('');
 	let formSystemPrompt = $state('');
+	let formDefaultModelId = $state<string>('');
+	let formDefaultWebSearchMode = $state<string>('');
+	let formDefaultWebSearchProvider = $state<string>('');
 	let isSubmitting = $state(false);
 
 	function startEdit(assistant: any) {
 		editingId = assistant.id;
 		formName = assistant.name;
 		formSystemPrompt = assistant.systemPrompt;
+		formDefaultModelId = assistant.defaultModelId ?? '';
+		formDefaultWebSearchMode = assistant.defaultWebSearchMode ?? '';
+		formDefaultWebSearchProvider = assistant.defaultWebSearchProvider ?? '';
 		isCreating = false;
 	}
 
@@ -41,6 +54,9 @@
 		editingId = null;
 		formName = '';
 		formSystemPrompt = '';
+		formDefaultModelId = '';
+		formDefaultWebSearchMode = '';
+		formDefaultWebSearchProvider = '';
 		isCreating = true;
 	}
 
@@ -49,6 +65,9 @@
 		isCreating = false;
 		formName = '';
 		formSystemPrompt = '';
+		formDefaultModelId = '';
+		formDefaultWebSearchMode = '';
+		formDefaultWebSearchProvider = '';
 		// Clear the create query param if present
 		if (page.url.searchParams.has('create')) {
 			goto('/account/assistants', { replaceState: true });
@@ -74,6 +93,9 @@
 					body: JSON.stringify({
 						name: formName,
 						systemPrompt: formSystemPrompt,
+						defaultModelId: formDefaultModelId || undefined,
+						defaultWebSearchMode: formDefaultWebSearchMode || undefined,
+						defaultWebSearchProvider: formDefaultWebSearchProvider || undefined,
 					}),
 				});
 				if (!res.ok) throw new Error('Failed to create');
@@ -84,6 +106,9 @@
 					body: JSON.stringify({
 						name: formName,
 						systemPrompt: formSystemPrompt,
+						defaultModelId: formDefaultModelId || null,
+						defaultWebSearchMode: formDefaultWebSearchMode || null,
+						defaultWebSearchProvider: formDefaultWebSearchProvider || null,
 					}),
 				});
 				if (!res.ok) throw new Error('Failed to update');
@@ -178,6 +203,55 @@
 						class="min-h-[180px] bg-background/50 border-border/50 focus:border-primary/50 transition-colors resize-y leading-relaxed"
 					/>
 					<p class="text-xs text-muted-foreground">Define your assistant's personality, expertise, and how it should respond.</p>
+				</div>
+
+				<!-- Default Settings Section -->
+				<div class="border-t border-border/30 pt-6 mt-6">
+					<h4 class="text-sm font-medium mb-4">Default Settings</h4>
+					<p class="text-xs text-muted-foreground mb-4">These settings will be applied automatically when you switch to this assistant.</p>
+					
+					<div class="grid gap-4 sm:grid-cols-3">
+						<div class="space-y-2">
+							<Label for="defaultModel" class="text-sm font-medium">Default Model</Label>
+							<select
+								id="defaultModel"
+								bind:value={formDefaultModelId}
+								class="w-full h-10 px-3 rounded-md bg-background/50 border border-border/50 text-sm focus:border-primary/50 focus:outline-none transition-colors"
+							>
+								<option value="">None</option>
+								{#each enabledModels as model (model.id)}
+									<option value={model.modelId}>{model.modelId.split('/').pop() ?? model.modelId}</option>
+								{/each}
+							</select>
+						</div>
+
+						<div class="space-y-2">
+							<Label for="defaultSearchMode" class="text-sm font-medium">Web Search</Label>
+							<select
+								id="defaultSearchMode"
+								bind:value={formDefaultWebSearchMode}
+								class="w-full h-10 px-3 rounded-md bg-background/50 border border-border/50 text-sm focus:border-primary/50 focus:outline-none transition-colors"
+							>
+								<option value="">None</option>
+								<option value="off">Off</option>
+								<option value="standard">Standard</option>
+								<option value="deep">Deep</option>
+							</select>
+						</div>
+
+						<div class="space-y-2">
+							<Label for="defaultSearchProvider" class="text-sm font-medium">Search Provider</Label>
+							<select
+								id="defaultSearchProvider"
+								bind:value={formDefaultWebSearchProvider}
+								class="w-full h-10 px-3 rounded-md bg-background/50 border border-border/50 text-sm focus:border-primary/50 focus:outline-none transition-colors"
+							>
+								<option value="">None</option>
+								<option value="linkup">Linkup</option>
+								<option value="tavily">Tavily</option>
+							</select>
+						</div>
+					</div>
 				</div>
 			</Card.Content>
 			<Card.Footer class="flex justify-end gap-3 pt-4 border-t border-border/30">

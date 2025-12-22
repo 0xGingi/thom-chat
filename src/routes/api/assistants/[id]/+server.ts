@@ -7,6 +7,9 @@ import { z } from 'zod';
 const updateAssistantSchema = z.object({
     name: z.string().min(1).max(100).optional(),
     systemPrompt: z.string().max(10000).optional(),
+    defaultModelId: z.string().nullable().optional(),
+    defaultWebSearchMode: z.enum(['off', 'standard', 'deep']).nullable().optional(),
+    defaultWebSearchProvider: z.enum(['linkup', 'tavily']).nullable().optional(),
 });
 
 export async function PATCH({ request, locals, params }: RequestEvent) {
@@ -38,12 +41,15 @@ export async function PATCH({ request, locals, params }: RequestEvent) {
         return json({ error: 'Assistant not found' }, { status: 404 });
     }
 
-    const { name, systemPrompt } = result.data;
+    const { name, systemPrompt, defaultModelId, defaultWebSearchMode, defaultWebSearchProvider } = result.data;
 
     await db.update(assistants)
         .set({
             ...(name ? { name } : {}),
             ...(systemPrompt !== undefined ? { systemPrompt } : {}),
+            ...(defaultModelId !== undefined ? { defaultModelId } : {}),
+            ...(defaultWebSearchMode !== undefined ? { defaultWebSearchMode } : {}),
+            ...(defaultWebSearchProvider !== undefined ? { defaultWebSearchProvider } : {}),
             updatedAt: new Date()
         })
         .where(eq(assistants.id, id));
