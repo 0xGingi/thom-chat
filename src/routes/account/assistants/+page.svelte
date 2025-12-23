@@ -21,7 +21,9 @@
 	models.init();
 
 	const enabledModelsQuery = useCachedQuery(api.user_enabled_models.get_enabled, {});
-	const enabledModels = $derived(Object.values(enabledModelsQuery.data ?? {}) as { id: string; modelId: string }[]);
+	const enabledModels = $derived(
+		Object.values(enabledModelsQuery.data ?? {}) as { id: string; modelId: string }[]
+	);
 
 	const assistantsQuery = useCachedQuery(api.assistants.list, {
 		session_token: session.current?.session.token ?? '',
@@ -178,21 +180,24 @@
 	{#if isCreating || editingId}
 		<Card.Root class="border-border/50 bg-card/50 backdrop-blur-sm">
 			<Card.Header class="pb-4">
-				<Card.Title class="text-xl">{isCreating ? 'Create Assistant' : 'Edit Assistant'}</Card.Title>
+				<Card.Title class="text-xl">{isCreating ? 'Create Assistant' : 'Edit Assistant'}</Card.Title
+				>
 				<p class="text-muted-foreground text-sm">
-					{isCreating ? 'Set up a new AI assistant with a custom persona.' : 'Update your assistant\'s name and system prompt.'}
+					{isCreating
+						? 'Set up a new AI assistant with a custom persona.'
+						: "Update your assistant's name and system prompt."}
 				</p>
 			</Card.Header>
 			<Card.Content class="space-y-6">
 				<div class="space-y-3">
 					<Label for="name" class="text-sm font-medium">Name</Label>
-					<Input 
-						id="name" 
-						bind:value={formName} 
+					<Input
+						id="name"
+						bind:value={formName}
 						placeholder="e.g. Coding Expert"
-						class="h-11 bg-background/50 border-border/50 focus:border-primary/50 transition-colors"
+						class="bg-background/50 border-border/50 focus:border-primary/50 h-11 transition-colors"
 					/>
-					<p class="text-xs text-muted-foreground">Give your assistant a memorable name.</p>
+					<p class="text-muted-foreground text-xs">Give your assistant a memorable name.</p>
 				</div>
 				<div class="space-y-3">
 					<Label for="prompt" class="text-sm font-medium">System Prompt</Label>
@@ -200,27 +205,33 @@
 						id="prompt"
 						bind:value={formSystemPrompt}
 						placeholder="You are a helpful assistant that..."
-						class="min-h-[180px] bg-background/50 border-border/50 focus:border-primary/50 transition-colors resize-y leading-relaxed"
+						class="bg-background/50 border-border/50 focus:border-primary/50 min-h-[180px] w-full min-w-[400px] resize leading-relaxed transition-colors"
 					/>
-					<p class="text-xs text-muted-foreground">Define your assistant's personality, expertise, and how it should respond.</p>
+					<p class="text-muted-foreground text-xs">
+						Define your assistant's personality, expertise, and how it should respond.
+					</p>
 				</div>
 
 				<!-- Default Settings Section -->
-				<div class="border-t border-border/30 pt-6 mt-6">
-					<h4 class="text-sm font-medium mb-4">Default Settings</h4>
-					<p class="text-xs text-muted-foreground mb-4">These settings will be applied automatically when you switch to this assistant.</p>
-					
+				<div class="border-border/30 mt-6 border-t pt-6">
+					<h4 class="mb-4 text-sm font-medium">Default Settings</h4>
+					<p class="text-muted-foreground mb-4 text-xs">
+						These settings will be applied automatically when you switch to this assistant.
+					</p>
+
 					<div class="grid gap-4 sm:grid-cols-3">
 						<div class="space-y-2">
 							<Label for="defaultModel" class="text-sm font-medium">Default Model</Label>
 							<select
 								id="defaultModel"
 								bind:value={formDefaultModelId}
-								class="w-full h-10 px-3 rounded-md bg-background/50 border border-border/50 text-sm focus:border-primary/50 focus:outline-none transition-colors"
+								class="bg-background/50 border-border/50 focus:border-primary/50 h-10 w-full rounded-md border px-3 text-sm transition-colors focus:outline-none"
 							>
 								<option value="">None</option>
 								{#each enabledModels as model (model.id)}
-									<option value={model.modelId}>{model.modelId.split('/').pop() ?? model.modelId}</option>
+									<option value={model.modelId}
+										>{model.modelId.split('/').pop() ?? model.modelId}</option
+									>
 								{/each}
 							</select>
 						</div>
@@ -230,7 +241,7 @@
 							<select
 								id="defaultSearchMode"
 								bind:value={formDefaultWebSearchMode}
-								class="w-full h-10 px-3 rounded-md bg-background/50 border border-border/50 text-sm focus:border-primary/50 focus:outline-none transition-colors"
+								class="bg-background/50 border-border/50 focus:border-primary/50 h-10 w-full rounded-md border px-3 text-sm transition-colors focus:outline-none"
 							>
 								<option value="">None</option>
 								<option value="off">Off</option>
@@ -244,7 +255,7 @@
 							<select
 								id="defaultSearchProvider"
 								bind:value={formDefaultWebSearchProvider}
-								class="w-full h-10 px-3 rounded-md bg-background/50 border border-border/50 text-sm focus:border-primary/50 focus:outline-none transition-colors"
+								class="bg-background/50 border-border/50 focus:border-primary/50 h-10 w-full rounded-md border px-3 text-sm transition-colors focus:outline-none"
 							>
 								<option value="">None</option>
 								<option value="linkup">Linkup</option>
@@ -255,7 +266,7 @@
 					</div>
 				</div>
 			</Card.Content>
-			<Card.Footer class="flex justify-end gap-3 pt-4 border-t border-border/30">
+			<Card.Footer class="border-border/30 flex justify-end gap-3 border-t pt-4">
 				<Button variant="ghost" onclick={cancelForm} disabled={isSubmitting}>Cancel</Button>
 				<Button onclick={handleSubmit} disabled={isSubmitting || !formName} class="min-w-[100px]">
 					{#if isSubmitting}
@@ -272,19 +283,27 @@
 
 	{#if isLoading}
 		<div class="flex justify-center p-8">
-			<LoaderCircle class="size-6 animate-spin text-muted-foreground" />
+			<LoaderCircle class="text-muted-foreground size-6 animate-spin" />
 		</div>
 	{:else}
 		<div class="grid gap-4">
 			{#each assistants as assistant (assistant.id)}
-				<Card.Root class="border-border/50 bg-card/30 transition-all hover:bg-card/50 {editingId === assistant.id ? 'border-primary ring-1 ring-primary/20' : ''}">
+				<Card.Root
+					class="border-border/50 bg-card/30 hover:bg-card/50 transition-all {editingId ===
+					assistant.id
+						? 'border-primary ring-primary/20 ring-1'
+						: ''}"
+				>
 					<Card.Header class="flex flex-row items-center justify-between space-y-0 pb-3">
 						<div class="flex items-center gap-2">
 							<Card.Title class="text-base font-semibold">
 								{assistant.name}
 							</Card.Title>
 							{#if assistant.isDefault}
-								<span class="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">Default</span>
+								<span
+									class="bg-primary/10 text-primary rounded-full px-2 py-0.5 text-xs font-medium"
+									>Default</span
+								>
 							{/if}
 						</div>
 						{#if !isCreating && !editingId}
@@ -293,7 +312,7 @@
 									<Button
 										variant="ghost"
 										size="icon"
-										class="size-8 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 transition-colors"
+										class="text-muted-foreground size-8 transition-colors hover:bg-amber-500/10 hover:text-amber-500"
 										onclick={() => handleSetDefault(assistant.id)}
 										title="Set as default"
 									>
@@ -304,7 +323,7 @@
 								<Button
 									variant="ghost"
 									size="icon"
-									class="size-8 hover:bg-primary/10 hover:text-primary transition-colors"
+									class="hover:bg-primary/10 hover:text-primary size-8 transition-colors"
 									onclick={() => startEdit(assistant)}
 								>
 									<Pencil class="size-4" />
@@ -314,7 +333,7 @@
 									<Button
 										variant="ghost"
 										size="icon"
-										class="size-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+										class="text-muted-foreground hover:text-destructive hover:bg-destructive/10 size-8 transition-colors"
 										onclick={() => handleDelete(assistant.id)}
 									>
 										<Trash class="size-4" />
@@ -326,11 +345,13 @@
 					</Card.Header>
 					<Card.Content class="pt-0">
 						{#if assistant.systemPrompt}
-							<p class="text-sm text-muted-foreground line-clamp-3 font-mono bg-muted/30 rounded-lg p-3 border border-border/30">
+							<p
+								class="text-muted-foreground bg-muted/30 border-border/30 line-clamp-3 rounded-lg border p-3 font-mono text-sm"
+							>
 								{assistant.systemPrompt}
 							</p>
 						{:else}
-							<p class="text-sm text-muted-foreground/60 italic">No system prompt configured</p>
+							<p class="text-muted-foreground/60 text-sm italic">No system prompt configured</p>
 						{/if}
 					</Card.Content>
 				</Card.Root>
