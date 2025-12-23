@@ -36,7 +36,11 @@ import { getOrCreateUserSettings } from '$lib/db/queries/user-settings';
 import { getUserMemory, upsertUserMemory } from '$lib/db/queries/user-memories';
 import { getNanoGPTModels } from '$lib/backend/models/nano-gpt';
 import { supportsVideo } from '$lib/utils/model-capabilities';
-import { checkAndUpdateDailyLimit, isWebDisabledForServerKey, isSubscriptionOnlyMode } from '$lib/backend/message-limits';
+import {
+	checkAndUpdateDailyLimit,
+	isWebDisabledForServerKey,
+	isSubscriptionOnlyMode,
+} from '$lib/backend/message-limits';
 
 // Set to true to enable debug logging
 const ENABLE_LOGGING = true;
@@ -123,12 +127,14 @@ async function generateConversationTitle({
 	startTime,
 	apiKey,
 	userMessage,
+	assistantMessage,
 }: {
 	conversationId: string;
 	userId: string;
 	startTime: number;
 	apiKey: string;
 	userMessage: string;
+	assistantMessage: string;
 }) {
 	log('Starting conversation title generation', startTime);
 
@@ -153,9 +159,10 @@ async function generateConversationTitle({
 		apiKey,
 	});
 
-	// Create a prompt for title generation using only the first user message
-	const titlePrompt = `Based on this message:
-"""${userMessage}"""
+	// Create a prompt for title generation using user message and assistant response
+	const titlePrompt = `Based on this conversation:
+User: """${userMessage}"""
+Assistant: """${assistantMessage}"""
 
 Generate a concise, specific title (max 4-5 words).
 Generate only the title based on the message, nothing else. Don't name the title 'Generate Title' or anything stupid like that, otherwise its obvious we're generating a title with AI.
@@ -245,7 +252,9 @@ async function generateAIResponse({
 	// Check if web search is enabled for the last user message
 	// Also respect webFeaturesDisabled flag for server-side enforcement
 	const lastUserMessage = conversationMessages.filter((m) => m.role === 'user').pop();
-	const webSearchEnabled = webFeaturesDisabled ? false : (lastUserMessage?.webSearchEnabled ?? false);
+	const webSearchEnabled = webFeaturesDisabled
+		? false
+		: (lastUserMessage?.webSearchEnabled ?? false);
 
 	// Determine if we're using Tavily or Exa (model suffix) or Linkup (separate API)
 	const useTavily = webSearchEnabled && webSearchProvider === 'tavily';
@@ -538,13 +547,16 @@ async function generateAIResponse({
 				);
 			}
 
-			if ((messageImages && messageImages.length > 0) || (messageDocuments && messageDocuments.length > 0)) {
+			if (
+				(messageImages && messageImages.length > 0) ||
+				(messageDocuments && messageDocuments.length > 0)
+			) {
 				return {
 					role: 'user' as const,
 					content: [
 						{ type: 'text' as const, text: m.content },
 						...processedImages,
-						...processedDocuments
+						...processedDocuments,
 					],
 				};
 			}
@@ -601,7 +613,11 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 
 	// Apply context memory compression if enabled (skip if features disabled for server key users)
 	let finalMessages = formattedMessages;
-	if (userSettingsData?.contextMemoryEnabled && formattedMessages.length > 4 && !webFeaturesDisabled) {
+	if (
+		userSettingsData?.contextMemoryEnabled &&
+		formattedMessages.length > 4 &&
+		!webFeaturesDisabled
+	) {
 		log('Background: Applying context memory compression', startTime);
 		try {
 			const memoryResponse = await fetch('https://nano-gpt.com/api/v1/memory', {
@@ -863,6 +879,18 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 		}
 
 		log('Background: Message and conversation updated', startTime);
+
+		// Generate title if needed (after response is complete)
+		if (lastUserMessage && content) {
+			generateConversationTitle({
+				conversationId,
+				userId,
+				startTime,
+				apiKey,
+				userMessage: lastUserMessage.content,
+				assistantMessage: content,
+			}).catch((e) => log(`Background title generation error: ${e}`, startTime));
+		}
 	} catch (error) {
 		await handleGenerationError({
 			error: `Stream processing error: ${error}`,
@@ -1202,8 +1230,14 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (allModels.isOk()) {
 			const requestedModel = allModels.value.find((m) => m.id === args.model_id);
 			if (!requestedModel || requestedModel.subscription?.included !== true) {
-				log(`Model ${args.model_id} is not a subscription model - rejecting for server key user`, startTime);
-				return error(403, 'This model is not available with the server API key. Please use a subscription-included model or add your own API key.');
+				log(
+					`Model ${args.model_id} is not a subscription model - rejecting for server key user`,
+					startTime
+				);
+				return error(
+					403,
+					'This model is not available with the server API key. Please use a subscription-included model or add your own API key.'
+				);
 			}
 			log(`Model ${args.model_id} subscription validation passed`, startTime);
 		}
@@ -1215,7 +1249,10 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (usingServerKey && isWebDisabledForServerKey()) {
 		effectiveWebSearchMode = 'off';
 		effectiveWebSearchEnabled = false;
-		log('Web search disabled for server key user due to DISABLE_WEB_ON_SERVER_KEY_WITH_SUBSCRIPTION_ONLY', startTime);
+		log(
+			'Web search disabled for server key user due to DISABLE_WEB_ON_SERVER_KEY_WITH_SUBSCRIPTION_ONLY',
+			startTime
+		);
 	}
 
 	let conversationId = args.conversation_id;
@@ -1251,24 +1288,14 @@ export const POST: RequestHandler = async ({ request }) => {
 			role: 'user',
 			images: args.images ?? null,
 			documents: args.documents ?? null,
-			webSearchEnabled: effectiveWebSearchMode && effectiveWebSearchMode !== 'off'
-				? true
-				: effectiveWebSearchEnabled ?? false,
+			webSearchEnabled:
+				effectiveWebSearchMode && effectiveWebSearchMode !== 'off'
+					? true
+					: (effectiveWebSearchEnabled ?? false),
 			createdAt: now,
 		});
 
 		log('New conversation and message created', startTime);
-
-		// Generate title for new conversation in background
-		generateConversationTitle({
-			conversationId,
-			userId,
-			startTime,
-			apiKey: actualKey,
-			userMessage: args.message,
-		}).catch((error) => {
-			log(`Background title generation error: ${error}`, startTime);
-		});
 	} else {
 		log('Using existing conversation', startTime);
 
@@ -1292,9 +1319,10 @@ export const POST: RequestHandler = async ({ request }) => {
 				reasoningEffort: args.reasoning_effort,
 				images: args.images ?? null,
 				documents: args.documents ?? null,
-				webSearchEnabled: args.web_search_mode && args.web_search_mode !== 'off'
-					? true
-					: effectiveWebSearchEnabled ?? false,
+				webSearchEnabled:
+					args.web_search_mode && args.web_search_mode !== 'off'
+						? true
+						: (effectiveWebSearchEnabled ?? false),
 				createdAt: new Date(),
 			});
 
@@ -1530,7 +1558,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			userSettingsData: userSettingsRecord ?? null,
 			abortSignal: abortController.signal,
 			reasoningEffort: args.reasoning_effort,
-			webSearchDepth: effectiveWebSearchMode && effectiveWebSearchMode !== 'off' ? effectiveWebSearchMode : undefined,
+			webSearchDepth:
+				effectiveWebSearchMode && effectiveWebSearchMode !== 'off'
+					? effectiveWebSearchMode
+					: undefined,
 			webSearchProvider: args.web_search_provider,
 			webFeaturesDisabled: usingServerKey && isWebDisabledForServerKey(),
 		})
