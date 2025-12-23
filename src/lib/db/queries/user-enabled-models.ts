@@ -111,12 +111,11 @@ export async function enableInitialModels(userId: string): Promise<void> {
 
     const now = new Date();
     const initialModels = [
+        'zai-org/glm-4.7',
         'zai-org/glm-4.6v',
+        'minimax/minimax-m2.1',
         'moonshotai/kimi-k2-thinking',
         'deepseek/deepseek-v3.2',
-        'x-ai/grok-4.1-fast',
-        'google/gemini-3-flash-preview',
-        'gpt-5-mini'
     ];
 
     await db.insert(userEnabledModels).values(
@@ -135,12 +134,11 @@ export async function enableInitialModels(userId: string): Promise<void> {
 export async function enableDefaultModelsOnKeyAdd(userId: string): Promise<void> {
     const now = new Date();
     const defaultModels = [
+        'zai-org/glm-4.7',
         'zai-org/glm-4.6v',
+        'minimax/minimax-m2.1',
         'moonshotai/kimi-k2-thinking',
         'deepseek/deepseek-v3.2',
-        'x-ai/grok-4.1-fast',
-        'google/gemini-3-flash-preview',
-        'gpt-5-mini'
     ];
 
     // Clean up anything else when adding a key

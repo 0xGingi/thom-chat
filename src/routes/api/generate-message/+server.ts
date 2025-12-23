@@ -14,7 +14,7 @@ import {
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { extractTextFromPDF } from '$lib/utils/pdf-extraction';
 import { eq, and, asc, sql } from 'drizzle-orm';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { auth } from '$lib/auth';
 import { Provider, type Annotation } from '$lib/types';
 import { error, json, type RequestHandler } from '@sveltejs/kit';
@@ -30,6 +30,7 @@ import { scrapeUrlsFromMessage } from '$lib/backend/url-scraper';
 import { getUserMemory, upsertUserMemory } from '$lib/db/queries/user-memories';
 import { getNanoGPTModels } from '$lib/backend/models/nano-gpt';
 import { supportsVideo } from '$lib/utils/model-capabilities';
+import { checkAndUpdateDailyLimit, isWebDisabledForServerKey, isSubscriptionOnlyMode } from '$lib/backend/message-limits';
 
 // Set to true to enable debug logging
 const ENABLE_LOGGING = true;
@@ -44,7 +45,7 @@ const reqBodySchema = z
 		conversation_id: z.string().optional(),
 		web_search_enabled: z.boolean().optional(),
 		web_search_mode: z.enum(['off', 'standard', 'deep']).optional(),
-		web_search_provider: z.enum(['linkup', 'tavily']).optional(),
+		web_search_provider: z.enum(['linkup', 'tavily', 'exa']).optional(),
 		images: z
 			.array(
 				z.object({
@@ -207,6 +208,7 @@ async function generateAIResponse({
 	reasoningEffort,
 	webSearchDepth,
 	webSearchProvider,
+	webFeaturesDisabled,
 }: {
 	conversationId: string;
 	userId: string;
@@ -218,7 +220,8 @@ async function generateAIResponse({
 	abortSignal?: AbortSignal;
 	reasoningEffort?: 'low' | 'medium' | 'high';
 	webSearchDepth?: 'standard' | 'deep';
-	webSearchProvider?: 'linkup' | 'tavily';
+	webSearchProvider?: 'linkup' | 'tavily' | 'exa';
+	webFeaturesDisabled?: boolean;
 }) {
 	log('Starting AI response generation in background', startTime);
 
@@ -236,18 +239,24 @@ async function generateAIResponse({
 	log(`Background: Retrieved ${conversationMessages.length} messages from conversation`, startTime);
 
 	// Check if web search is enabled for the last user message
+	// Also respect webFeaturesDisabled flag for server-side enforcement
 	const lastUserMessage = conversationMessages.filter((m) => m.role === 'user').pop();
-	const webSearchEnabled = lastUserMessage?.webSearchEnabled ?? false;
+	const webSearchEnabled = webFeaturesDisabled ? false : (lastUserMessage?.webSearchEnabled ?? false);
 
-	// Determine if we're using Tavily (model suffix) or Linkup (separate API)
+	// Determine if we're using Tavily or Exa (model suffix) or Linkup (separate API)
 	const useTavily = webSearchEnabled && webSearchProvider === 'tavily';
+	const useExa = webSearchEnabled && webSearchProvider === 'exa';
 
-	// When using Tavily, append the suffix to the model ID
+	// When using Tavily or Exa, append the suffix to the model ID
 	let modelId = model.modelId;
 	if (useTavily && webSearchDepth) {
 		const tavilySuffix = webSearchDepth === 'deep' ? ':online/tavily-deep' : ':online/tavily';
 		modelId = `${model.modelId}${tavilySuffix}`;
 		log(`Background: Using Tavily web search via model suffix: ${modelId}`, startTime);
+	} else if (useExa && webSearchDepth) {
+		const exaSuffix = webSearchDepth === 'deep' ? ':online/exa-deep' : ':online/exa-fast';
+		modelId = `${model.modelId}${exaSuffix}`;
+		log(`Background: Using Exa web search via model suffix: ${modelId}`, startTime);
 	}
 
 	// Fetch persistent memory if enabled
@@ -265,7 +274,7 @@ async function generateAIResponse({
 		}
 	}
 
-	// Perform web search if enabled (only for Linkup, Tavily uses model suffix)
+	// Perform web search if enabled (only for Linkup, Tavily and Exa use model suffix)
 	let searchContext: string | null = null;
 	let webSearchCost = 0;
 
@@ -276,7 +285,14 @@ async function generateAIResponse({
 		log(`Background: Tavily web search cost: $${webSearchCost}`, startTime);
 	}
 
-	if (webSearchEnabled && lastUserMessage && !useTavily) {
+	// Track Exa search cost (handled via model suffix, but we still track the cost)
+	if (useExa && webSearchDepth) {
+		// Exa pricing: Deep search $0.015, Fast search $0.005
+		webSearchCost = webSearchDepth === 'deep' ? 0.015 : 0.005;
+		log(`Background: Exa web search cost: $${webSearchCost}`, startTime);
+	}
+
+	if (webSearchEnabled && lastUserMessage && !useTavily && !useExa) {
 		log('Background: Performing Linkup web search', startTime);
 		try {
 			const depth = webSearchDepth ?? 'standard';
@@ -289,10 +305,11 @@ async function generateAIResponse({
 	}
 
 	// Scrape URLs from the user message if any are present
+	// Skip if web features are disabled for this user
 	let scrapedContent: string = '';
 	let scrapeCost = 0;
 
-	if (lastUserMessage) {
+	if (lastUserMessage && !webFeaturesDisabled) {
 		log('Background: Checking for URLs to scrape', startTime);
 		try {
 			const scrapeResult = await scrapeUrlsFromMessage(lastUserMessage.content, apiKey);
@@ -305,6 +322,8 @@ async function generateAIResponse({
 		} catch (e) {
 			log(`Background: URL scraping failed: ${e}`, startTime);
 		}
+	} else if (webFeaturesDisabled && lastUserMessage) {
+		log('Background: Skipping URL scraping - web features disabled for this user', startTime);
 	}
 
 	// Create assistant message
@@ -539,9 +558,9 @@ Rules to follow:
 ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 	}
 
-	// Apply context memory compression if enabled
+	// Apply context memory compression if enabled (skip if features disabled for server key users)
 	let finalMessages = formattedMessages;
-	if (userSettingsData?.contextMemoryEnabled && formattedMessages.length > 4) {
+	if (userSettingsData?.contextMemoryEnabled && formattedMessages.length > 4 && !webFeaturesDisabled) {
 		log('Background: Applying context memory compression', startTime);
 		try {
 			const memoryResponse = await fetch('https://nano-gpt.com/api/v1/memory', {
@@ -571,6 +590,8 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 		} catch (e) {
 			log(`Background: Context memory compression failed: ${e}, using original messages`, startTime);
 		}
+	} else if (webFeaturesDisabled && userSettingsData?.contextMemoryEnabled) {
+		log('Background: Skipping context memory - features disabled for this user', startTime);
 	}
 
 	// Only include system message if there is content
@@ -1087,11 +1108,13 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	// Determine API key
 	let actualKey: string;
+	let usingServerKey = false;
 	if (keyRecord?.key) {
 		actualKey = keyRecord.key;
 		log('Using user API key', startTime);
 	} else if (process.env.NANOGPT_API_KEY) {
 		actualKey = process.env.NANOGPT_API_KEY;
+		usingServerKey = true;
 		log('Using global API key', startTime);
 	} else {
 		// NanoGPT requires an API key
@@ -1100,6 +1123,38 @@ export const POST: RequestHandler = async ({ request }) => {
 			403,
 			'No API key found. Please add your NanoGPT API key in Settings > Models to continue chatting.'
 		);
+	}
+
+	// Check daily message limit when using server API key
+	if (usingServerKey) {
+		const limitResult = await checkAndUpdateDailyLimit(userId, usingServerKey, true);
+		if (!limitResult.allowed) {
+			log(`Daily limit exceeded for user ${userId}`, startTime);
+			return error(429, limitResult.error || 'Daily message limit exceeded');
+		}
+		log(`Daily limit check passed. Remaining: ${limitResult.remaining}`, startTime);
+	}
+
+	// Validate model is subscription-eligible when using server key in subscription-only mode
+	if (usingServerKey && isSubscriptionOnlyMode()) {
+		const allModels = await getNanoGPTModels();
+		if (allModels.isOk()) {
+			const requestedModel = allModels.value.find((m) => m.id === args.model_id);
+			if (!requestedModel || requestedModel.subscription?.included !== true) {
+				log(`Model ${args.model_id} is not a subscription model - rejecting for server key user`, startTime);
+				return error(403, 'This model is not available with the server API key. Please use a subscription-included model or add your own API key.');
+			}
+			log(`Model ${args.model_id} subscription validation passed`, startTime);
+		}
+	}
+
+	// Disable web features if restricted for server key users
+	let effectiveWebSearchMode = args.web_search_mode;
+	let effectiveWebSearchEnabled = args.web_search_enabled;
+	if (usingServerKey && isWebDisabledForServerKey()) {
+		effectiveWebSearchMode = 'off';
+		effectiveWebSearchEnabled = false;
+		log('Web search disabled for server key user due to DISABLE_WEB_ON_SERVER_KEY_WITH_SUBSCRIPTION_ONLY', startTime);
 	}
 
 	let conversationId = args.conversation_id;
@@ -1134,9 +1189,9 @@ export const POST: RequestHandler = async ({ request }) => {
 			content: args.message,
 			role: 'user',
 			images: args.images ?? null,
-			webSearchEnabled: args.web_search_mode && args.web_search_mode !== 'off'
+			webSearchEnabled: effectiveWebSearchMode && effectiveWebSearchMode !== 'off'
 				? true
-				: args.web_search_enabled ?? false,
+				: effectiveWebSearchEnabled ?? false,
 			createdAt: now,
 		});
 
@@ -1173,11 +1228,11 @@ export const POST: RequestHandler = async ({ request }) => {
 				role: 'user',
 				modelId: args.model_id,
 				reasoningEffort: args.reasoning_effort,
-images: args.images ?? null,
-			documents: args.documents ?? null,
+        images: args.images ?? null,
+        documents: args.documents ?? null,
 				webSearchEnabled: args.web_search_mode && args.web_search_mode !== 'off'
 					? true
-					: args.web_search_enabled ?? false,
+					: effectiveWebSearchEnabled ?? false,
 				createdAt: new Date(),
 			});
 
@@ -1301,9 +1356,14 @@ images: args.images ?? null,
 				}
 
 				const storageId = generateId();
-				const extension = mimeType.split('/')[1] || 'png';
+				const extension = (mimeType.split('/')[1] || 'png').replace(/[^a-zA-Z0-9]/g, '') || 'png';
 				const filename = `${storageId}.${extension}`;
 				const filepath = join(UPLOAD_DIR, filename);
+
+				// Prevent path traversal
+				if (!resolve(filepath).startsWith(resolve(UPLOAD_DIR))) {
+					throw new Error('Invalid file path');
+				}
 
 				writeFileSync(filepath, buffer);
 
@@ -1405,8 +1465,9 @@ images: args.images ?? null,
 			userSettingsData: userSettingsRecord ?? null,
 			abortSignal: abortController.signal,
 			reasoningEffort: args.reasoning_effort,
-			webSearchDepth: args.web_search_mode && args.web_search_mode !== 'off' ? args.web_search_mode : undefined,
+			webSearchDepth: effectiveWebSearchMode && effectiveWebSearchMode !== 'off' ? effectiveWebSearchMode : undefined,
 			webSearchProvider: args.web_search_provider,
+			webFeaturesDisabled: usingServerKey && isWebDisabledForServerKey(),
 		})
 			.catch(async (error) => {
 				log(`Background AI response generation error: ${error}`, startTime);

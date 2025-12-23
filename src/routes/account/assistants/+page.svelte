@@ -249,6 +249,7 @@
 								<option value="">None</option>
 								<option value="linkup">Linkup</option>
 								<option value="tavily">Tavily</option>
+								<option value="exa">Exa</option>
 							</select>
 						</div>
 					</div>

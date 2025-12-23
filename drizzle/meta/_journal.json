@@ -92,6 +92,13 @@
       "when": 1766345000000,
       "tag": "0012_add_documents_field",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1766497934552,
+      "tag": "0013_add_daily_message_tracking",
+      "breakpoints": true
     }
   ]
 }

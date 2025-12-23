@@ -2,7 +2,7 @@ import { json, error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { auth } from '$lib/auth';
 import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { db, generateId } from '$lib/db';
 import { storage } from '$lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -30,9 +30,14 @@ export const POST: RequestHandler = async ({ request }) => {
     const body = await request.arrayBuffer();
 
     const id = generateId();
-    const extension = contentType.split('/')[1] || 'bin';
+    const extension = (contentType.split('/')[1] || 'bin').replace(/[^a-zA-Z0-9]/g, '') || 'bin';
     const filename = `${id}.${extension}`;
     const filepath = join(UPLOAD_DIR, filename);
+
+    // Prevent path traversal
+    if (!resolve(filepath).startsWith(resolve(UPLOAD_DIR))) {
+        throw error(403, 'Invalid file path');
+    }
 
     // Write file to disk
     writeFileSync(filepath, Buffer.from(body));
