@@ -22,6 +22,7 @@ export async function createUserSettings(
             privacyMode: data?.privacyMode ?? false,
             contextMemoryEnabled: data?.contextMemoryEnabled ?? false,
             persistentMemoryEnabled: data?.persistentMemoryEnabled ?? false,
+            youtubeTranscriptsEnabled: data?.youtubeTranscriptsEnabled ?? false,
             freeMessagesUsed: data?.freeMessagesUsed ?? 0,
             karakeepUrl: data?.karakeepUrl ?? null,
             karakeepApiKey: data?.karakeepApiKey ?? null,
