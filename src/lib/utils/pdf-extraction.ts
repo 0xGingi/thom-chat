@@ -20,12 +20,15 @@ export async function extractTextFromPDF(filePath: string): Promise<string> {
 
 		// Fallback: try using pdf-parse if available
 		try {
-			const pdfParse = require('pdf-parse');
+			const { PDFParse } = await import('pdf-parse');
 			const dataBuffer = readFileSync(filePath);
-			const data = await pdfParse(dataBuffer);
+			// @ts-ignore - PDFParse types might differ or be missing
+			const parser = new PDFParse({ data: dataBuffer });
+			const data = await parser.getText();
+			await parser.destroy();
 			return data.text;
 		} catch (error) {
-			console.warn('pdf-parse not available');
+			console.warn('pdf-parse extraction failed', error);
 		}
 
 		// If no extraction method works, return a placeholder
