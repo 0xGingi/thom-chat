@@ -140,10 +140,9 @@
 			wasGeneratingInLayout = true;
 		} else if (wasGeneratingInLayout) {
 			wasGeneratingInLayout = false;
-			// Title is generated asynchronously after response completes
-			// Trigger multiple delayed refreshes to catch the title update
-			setTimeout(() => invalidateQueryPattern(api.conversations.get.url), 2000);
-			setTimeout(() => invalidateQueryPattern(api.conversations.get.url), 5000);
+			// Title generation now happens while generating=true, so the existing
+			// polling mechanism in app-sidebar.svelte will catch the update
+			// No additional refreshes needed here
 		}
 	});
 

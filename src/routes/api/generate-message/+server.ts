@@ -762,6 +762,20 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 			})
 			.where(eq(messages.id, assistantMessageId));
 
+		// Generate title if needed (after response is complete)
+		// We do this before setting generating=false so the UI continues polling
+		// until the title is generated
+		if (lastUserMessage && content) {
+			await generateConversationTitle({
+				conversationId,
+				userId,
+				startTime,
+				apiKey,
+				userMessage: lastUserMessage.content,
+				assistantMessage: content,
+			}).catch((e) => log(`Background title generation error: ${e}`, startTime));
+		}
+
 		// Update conversation generating status and cost
 		await db
 			.update(conversations)
@@ -817,18 +831,6 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 		}
 
 		log('Background: Message and conversation updated', startTime);
-
-		// Generate title if needed (after response is complete)
-		if (lastUserMessage && content) {
-			generateConversationTitle({
-				conversationId,
-				userId,
-				startTime,
-				apiKey,
-				userMessage: lastUserMessage.content,
-				assistantMessage: content,
-			}).catch((e) => log(`Background title generation error: ${e}`, startTime));
-		}
 	} catch (error) {
 		await handleGenerationError({
 			error: `Stream processing error: ${error}`,
