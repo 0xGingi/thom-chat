@@ -26,7 +26,7 @@
 		{}
 	);
 	const enabledModels = $derived(
-		(enabledModelsQuery.data ?? []) as { id: string; modelId: string }[]
+		Object.values(enabledModelsQuery.data ?? {}) as { id: string; modelId: string }[]
 	);
 
 	const assistantsQuery = useCachedQuery<Assistant[]>(api.assistants.list, {
