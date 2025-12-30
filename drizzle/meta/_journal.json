@@ -120,6 +120,13 @@
       "when": 1766710048100,
       "tag": "0016_elite_mastermind",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1767122832108,
+      "tag": "0017_loving_the_enforcers",
+      "breakpoints": true
     }
   ]
 }
