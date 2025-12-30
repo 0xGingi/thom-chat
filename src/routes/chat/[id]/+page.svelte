@@ -131,6 +131,11 @@
 			delete showSuggestionsDelay[currentSuggestionsMessageId];
 			currentSuggestionsMessageId = null;
 		}
+
+		// Log when historical suggestions are not found (only when not generating)
+		if (lastMsg && !lastMsg.followUpSuggestions && !conversation.data?.generating) {
+			console.log('[follow-up] No suggestions found for message', lastMsg.id);
+		}
 	});
 
 	// NEW: Generate follow-up suggestions function
@@ -153,7 +158,7 @@
 	const lastMessageWithSuggestions = $derived.by(() => {
 		const lastMsg = messages.data?.[messages.data?.length - 1];
 
-		if (!lastMsg || lastMsg.id !== currentSuggestionsMessageId) {
+		if (!lastMsg) {
 			return null;
 		}
 
@@ -165,10 +170,19 @@
 			return null;
 		}
 
+		// Check if this is a historical message (not the current session's generated message)
+		const isHistorical = currentSuggestionsMessageId !== lastMsg.id;
+
+		if (isHistorical) {
+			// Historical messages show suggestions immediately
+			return lastMsg;
+		}
+
+		// For current session messages, check the delay
 		const delayTime = showSuggestionsDelay[lastMsg.id] ?? 0;
 		const elapsed = Date.now() - delayTime;
 
-		if (elapsed < 2500) {
+		if (elapsed < 1000) {
 			return null;
 		}
 
