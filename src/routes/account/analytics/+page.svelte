@@ -15,7 +15,7 @@
 
 	let { data }: { data: PageData } = $props();
 
-	let sortColumn = $state<'model' | 'rating' | 'uses' | 'cost' | 'thumbsRatio'>('uses');
+	let sortColumn = $state<'model' | 'rating' | 'uses' | 'cost' | 'thumbsRatio' | 'speed'>('uses');
 	let sortDirection = $state<'asc' | 'desc'>('desc');
 	let isRefreshing = $state(false);
 
@@ -25,33 +25,37 @@
 			let aVal: number;
 			let bVal: number;
 
-			switch (sortColumn) {
-				case 'model':
-					return sortDirection === 'asc'
-						? a.modelId.localeCompare(b.modelId)
-						: b.modelId.localeCompare(a.modelId);
-				case 'rating':
-					aVal = a.avgRating ?? 0;
-					bVal = b.avgRating ?? 0;
-					break;
-				case 'uses':
-					aVal = a.totalMessages;
-					bVal = b.totalMessages;
-					break;
-				case 'cost':
-					aVal = a.totalCost / a.totalMessages;
-					bVal = b.totalCost / b.totalMessages;
-					break;
-				case 'thumbsRatio':
-					const aTotal = a.thumbsUpCount + a.thumbsDownCount;
-					const bTotal = b.thumbsUpCount + b.thumbsDownCount;
-					aVal = aTotal > 0 ? a.thumbsUpCount / aTotal : 0;
-					bVal = bTotal > 0 ? b.thumbsUpCount / bTotal : 0;
-					break;
-				default:
-					aVal = 0;
-					bVal = 0;
-			}
+				switch (sortColumn) {
+					case 'model':
+						return sortDirection === 'asc'
+							? a.modelId.localeCompare(b.modelId)
+							: b.modelId.localeCompare(a.modelId);
+					case 'rating':
+						aVal = a.avgRating ?? 0;
+						bVal = b.avgRating ?? 0;
+						break;
+					case 'uses':
+						aVal = a.totalMessages;
+						bVal = b.totalMessages;
+						break;
+					case 'cost':
+						aVal = a.totalMessages > 0 ? a.totalCost / a.totalMessages : 0;
+						bVal = b.totalMessages > 0 ? b.totalCost / b.totalMessages : 0;
+						break;
+					case 'thumbsRatio':
+						const aTotal = a.thumbsUpCount + a.thumbsDownCount;
+						const bTotal = b.thumbsUpCount + b.thumbsDownCount;
+						aVal = aTotal > 0 ? a.thumbsUpCount / aTotal : 0;
+						bVal = bTotal > 0 ? b.thumbsUpCount / bTotal : 0;
+						break;
+					case 'speed':
+						aVal = getTokensPerSecond(a);
+						bVal = getTokensPerSecond(b);
+						break;
+					default:
+						aVal = 0;
+						bVal = 0;
+				}
 
 			return sortDirection === 'asc' ? aVal - bVal : bVal - aVal;
 		});
@@ -88,6 +92,11 @@
 		if (total === 0) return 'N/A';
 		const ratio = (upCount / total) * 100;
 		return `${ratio.toFixed(0)}%`;
+	}
+
+	function getTokensPerSecond(stat: (typeof sortedStats)[0]): number {
+		if (!stat.avgTokens || !stat.avgResponseTime || stat.avgResponseTime <= 0) return 0;
+		return stat.avgTokens / (stat.avgResponseTime / 1000);
 	}
 
 	function getTopCategories(stat: (typeof sortedStats)[0]): Array<{ name: string; count: number }> {
@@ -216,6 +225,18 @@
 					</p>
 				</div>
 			{/if}
+
+			{#if data.insights.fastestModel}
+				<div class="bg-card rounded-lg border p-6">
+					<h3 class="mb-2 text-lg font-semibold">Fastest Model</h3>
+					<p class="text-muted-foreground text-sm">
+						<strong>{data.insights.fastestModel.modelId}</strong>
+						with an average speed of
+						<strong>{getTokensPerSecond(data.insights.fastestModel).toFixed(1)} tokens/sec</strong>
+						({data.insights.fastestModel.totalMessages} messages)
+					</p>
+				</div>
+			{/if}
 		</div>
 
 		<!-- Model Comparison Table -->
@@ -287,6 +308,18 @@
 									</button>
 								</th>
 								<th class="pr-4 pb-3 text-center">
+									<button
+										type="button"
+										onclick={() => toggleSort('speed')}
+										class="hover:text-foreground text-muted-foreground flex items-center gap-1 font-medium"
+									>
+										Speed (t/s)
+										{#if sortColumn === 'speed'}
+											<span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+										{/if}
+									</button>
+								</th>
+								<th class="pr-4 pb-3 text-center">
 									<span class="text-muted-foreground font-medium">Top Categories</span>
 								</th>
 								<th class="pb-3 text-center">
@@ -331,6 +364,14 @@
 												({getThumbsRatio(stat.thumbsUpCount, stat.thumbsDownCount)})
 											</span>
 										</div>
+									</td>
+									<td class="py-3 pr-4 text-center">
+										{#if stat.avgTokens !== null && stat.avgTokens !== undefined && stat.avgResponseTime && stat.avgResponseTime > 0}
+											{@const tps = getTokensPerSecond(stat)}
+											<span>{tps.toFixed(1)}</span>
+										{:else}
+											<span class="text-muted-foreground text-sm">N/A</span>
+										{/if}
 									</td>
 									<td class="py-3 pr-4">
 										{#if getTopCategories(stat).length > 0}

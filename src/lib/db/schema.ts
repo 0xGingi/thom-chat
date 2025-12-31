@@ -209,6 +209,8 @@ export const messages = sqliteTable(
 		modelId: text('model_id'),
 		provider: text('provider'),
 		tokenCount: integer('token_count'),
+		// Total generation time for this assistant response in milliseconds
+		responseTimeMs: integer('response_time_ms'),
 		images: text('images', { mode: 'json' }).$type<
 			Array<{ url: string; storage_id: string; fileName?: string }>
 		>(),

@@ -626,6 +626,9 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 		return;
 	}
 
+	// Measure end-to-end generation time (API call + streaming)
+	const generationStart = Date.now();
+
 	const streamResult = await ResultAsync.fromPromise(
 		openai.chat.completions.create(
 			{
@@ -712,10 +715,6 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 				.where(eq(messages.id, assistantMessageId));
 		}
 
-		log(
-			`Background stream processing completed. Processed ${chunkCount} chunks, final content length: ${content.length}`,
-			startTime
-		);
 
 		if (!generationId) {
 			log('Background: No generation id found', startTime);
@@ -762,11 +761,18 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 		}
 
 		const contentHtmlResult = await contentHtmlResultPromise;
-
+		
 		if (contentHtmlResult.isErr()) {
 			log(`Background: Failed to render HTML: ${contentHtmlResult.error}`, startTime);
 		}
-
+		
+		// Compute end-to-end generation time in milliseconds
+		const responseTimeMs = Date.now() - generationStart;
+		log(
+			`Background stream processing completed. Processed ${chunkCount} chunks, final content length: ${content.length}, responseTimeMs=${responseTimeMs}`,
+			startTime
+		);
+		
 		// Update message with final data
 		await db
 			.update(messages)
@@ -775,6 +781,7 @@ ${attachedRules.map((r) => `- ${r.name}: ${r.rule}`).join('\n')}`;
 				costUsd,
 				generationId,
 				contentHtml: contentHtmlResult.unwrapOr(null),
+				responseTimeMs,
 			})
 			.where(eq(messages.id, assistantMessageId));
 

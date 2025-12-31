@@ -59,6 +59,30 @@ export const load: PageServerLoad = async ({ request }) => {
                 })
                 : null;
 
+        // Find fastest model by tokens/sec (requires avgTokens and avgResponseTime with at least 5 messages)
+        const modelsWithSpeed = stats.filter(
+            (s) =>
+                s.totalMessages >= 5 &&
+                s.avgTokens !== null &&
+                s.avgTokens !== undefined &&
+                s.avgResponseTime !== null &&
+                s.avgResponseTime !== undefined &&
+                s.avgResponseTime > 0
+        );
+
+        const fastestModel =
+            modelsWithSpeed.length > 0
+                ? modelsWithSpeed.reduce((prev, current) => {
+                    const prevSpeed =
+                        (prev.avgTokens ?? 0) /
+                        (((prev.avgResponseTime ?? 0) / 1000) || 1); // tokens per second
+                    const currentSpeed =
+                        (current.avgTokens ?? 0) /
+                        (((current.avgResponseTime ?? 0) / 1000) || 1);
+                    return currentSpeed > prevSpeed ? current : prev;
+                })
+                : null;
+
         console.log(`[analytics] Generated insights: ${totalMessages} messages, $${totalCost.toFixed(2)} cost`);
 
         return {
@@ -70,6 +94,7 @@ export const load: PageServerLoad = async ({ request }) => {
                 mostUsedModel,
                 bestRatedModel,
                 mostCostEffective,
+                fastestModel,
             },
         };
     } catch (err) {

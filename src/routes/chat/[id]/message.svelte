@@ -549,6 +549,17 @@
 						${message.costUsd.toFixed(6)}
 					</span>
 				{/if}
+				{#if message.tokenCount != null}
+					<span class="text-muted-foreground text-xs">
+						{message.tokenCount.toLocaleString()} tokens
+					</span>
+				{/if}
+				{#if message.tokenCount != null && message.responseTimeMs != null && message.responseTimeMs > 0}
+					{@const tps = message.tokenCount / (message.responseTimeMs / 1000)}
+					<span class="text-muted-foreground text-xs">
+						{tps.toFixed(1)} tokens/sec
+					</span>
+				{/if}
 			{/if}
 		</div>
 		{#if message.role === 'assistant' && message.content.length > 0 && !message.error}

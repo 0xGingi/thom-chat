@@ -105,10 +105,26 @@ export async function calculateModelPerformanceStats(
         const totalMessages = modelMessages.length;
         const totalCost = modelMessages.reduce((sum, m) => sum + (m.costUsd ?? 0), 0);
         const errorCount = modelMessages.filter((m) => m.error).length;
+
+        // Only consider assistant messages with token/latency data for speed-related metrics
+        const responseMessages = modelMessages.filter(
+            (m) => m.role === 'assistant' && m.tokenCount !== null && m.tokenCount !== undefined
+        );
+        const responsesWithLatency = responseMessages.filter(
+            (m) => m.responseTimeMs !== null && m.responseTimeMs !== undefined && m.responseTimeMs > 0
+        );
+
         const avgTokens =
-            totalMessages > 0
-                ? modelMessages.reduce((sum, m) => sum + (m.tokenCount ?? 0), 0) / totalMessages
+            responseMessages.length > 0
+                ? responseMessages.reduce((sum, m) => sum + (m.tokenCount ?? 0), 0) /
+                  responseMessages.length
                 : 0;
+
+        const avgResponseTime =
+            responsesWithLatency.length > 0
+                ? responsesWithLatency.reduce((sum, m) => sum + (m.responseTimeMs ?? 0), 0) /
+                  responsesWithLatency.length
+                : undefined;
 
         // Calculate rating stats
         const allRatings = modelMessages.flatMap((m) => m.ratings ?? []);
@@ -155,6 +171,7 @@ export async function calculateModelPerformanceStats(
             thumbsUpCount,
             thumbsDownCount,
             regenerateCount,
+            avgResponseTime,
             avgTokens: avgTokens > 0 ? avgTokens : undefined,
             totalCost,
             errorCount,
