@@ -349,7 +349,7 @@
 			</div>
 			<div class="flex place-items-center justify-between">
 				<div class="flex flex-col gap-1">
-					<span>YouTube Transcripts</span>
+					<span class="font-medium">YouTube Transcripts</span>
 					<span class="text-muted-foreground text-sm"
 						>Automatically fetch YouTube video transcripts ($0.01 each).</span
 					>
