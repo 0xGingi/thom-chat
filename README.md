@@ -53,6 +53,17 @@
 - `bun run dev`
 - run `npx drizzle-kit push` to upgrade your database schema when new features are added!
 
+## Nginx
+
+Ensure to have the following in your server block if you use nginx:
+
+```
+proxy_buffer_size 256k;
+proxy_buffers 4 256k;
+proxy_busy_buffers_size 256k;
+client_max_body_size 50M;
+```
+
 ---
 
 ## Features Overview
