@@ -78,6 +78,7 @@ const reqBodySchema = z
 			.optional(),
 		reasoning_effort: z.enum(['low', 'medium', 'high']).optional(),
 		temporary: z.boolean().optional(),
+		provider_id: z.string().optional(), // X-Provider header for provider selection
 	})
 	.refine(
 		(data) => {
@@ -227,6 +228,7 @@ async function generateAIResponse({
 	webFeaturesDisabled,
 	userName,
 	isTemporary,
+	providerId,
 }: {
 	conversationId: string;
 	userId: string;
@@ -242,6 +244,7 @@ async function generateAIResponse({
 	webFeaturesDisabled?: boolean;
 	userName?: string;
 	isTemporary?: boolean;
+	providerId?: string; // X-Provider header for provider selection
 }) {
 	log('Starting AI response generation in background', startTime);
 
@@ -355,6 +358,7 @@ async function generateAIResponse({
 	const openai = new OpenAI({
 		baseURL: 'https://nano-gpt.com/api/v1',
 		apiKey,
+		defaultHeaders: providerId ? { 'X-Provider': providerId } : undefined,
 	});
 
 	const formattedMessages = await Promise.all(
@@ -1600,6 +1604,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			webFeaturesDisabled: usingServerKey && isWebDisabledForServerKey(),
 			userName: session.user?.name ?? undefined,
 			isTemporary: isTemporaryChat,
+			providerId: args.provider_id,
 		})
 			.catch(async (error) => {
 				log(`Background AI response generation error: ${error}`, startTime);

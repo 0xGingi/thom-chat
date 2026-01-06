@@ -46,6 +46,7 @@
 	import { callCancelGeneration } from '../api/cancel-generation/call.js';
 	import { callGenerateMessage } from '../api/generate-message/call.js';
 	import { ModelPicker } from '$lib/components/model-picker';
+	import { ProviderPicker } from '$lib/components/provider-picker';
 	import SearchModal from './search-modal.svelte';
 	import { shortcut, getKeybindOptions } from '$lib/actions/shortcut.svelte.js';
 	import { mergeAttrs } from 'melt';
@@ -244,6 +245,7 @@
 				session_token: session.current?.session.token,
 				conversation_id: page.params.id ?? undefined,
 				model_id: settings.modelId,
+				provider_id: settings.providerId || undefined,
 				images: imagesCopy.length > 0 ? imagesCopy : undefined,
 				documents: documentsCopy.length > 0 ? documentsCopy : undefined,
 				web_search_mode: settings.webSearchMode,
@@ -1072,6 +1074,10 @@
 									<ModelPicker
 										class="bg-secondary/50 hover:bg-secondary text-muted-foreground flex h-9 items-center justify-center rounded-lg px-2.5 transition-colors"
 										onlyImageModels={selectedImages.length > 0}
+									/>
+									<ProviderPicker
+										class="bg-secondary/50 hover:bg-secondary text-muted-foreground flex h-9 items-center justify-center rounded-lg px-1.5 transition-colors"
+										modelId={settings.modelId}
 									/>
 									{#if assistantsQuery.data && assistantsQuery.data.length > 0}
 										<DropdownMenu.Root>
