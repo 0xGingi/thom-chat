@@ -6,6 +6,8 @@
   <img src="image.png">
 </div>
 
+**IMPORTANT** - Rename your thom-chat.db.* files to nanochat.db.*
+
 ---
 
 ## Changes with this fork
