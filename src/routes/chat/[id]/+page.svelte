@@ -194,7 +194,7 @@
 	<title>{conversation.data?.title} | nanochat</title>
 </svelte:head>
 
-<div class="flex h-full flex-1 flex-col py-4 pt-6">
+<div class="flex h-full flex-1 flex-col gap-4 py-2 pt-4 md:gap-6 md:py-4 md:pt-6">
 	{#if !conversation.data && !conversation.isLoading}
 		<div class="flex flex-1 flex-col items-center justify-center gap-4 pt-[25svh]">
 			<div>

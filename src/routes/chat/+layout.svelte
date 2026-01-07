@@ -881,8 +881,8 @@
 		<div class="relative">
 			<div bind:this={conversationList} class="fill-device-height overflow-y-auto">
 				<div
-					class={cn('mx-auto flex max-w-3xl flex-col', {
-						'pt-14 md:pt-10': page.url.pathname !== '/chat',
+					class={cn('mx-auto flex max-w-3xl flex-col px-2 md:px-0', {
+						'pt-12 md:pt-10': page.url.pathname !== '/chat',
 					})}
 					style="padding-bottom: {page.url.pathname !== '/chat' ? wrapperSize.height : 0}px;"
 				>
@@ -895,14 +895,14 @@
 							variant="secondary"
 							size="sm"
 							class={[
-								'text-muted-foreground !border-border absolute bottom-0 left-1/2 z-10 -translate-x-1/2 rounded-full !border !pl-3 text-xs transition',
+								'text-muted-foreground !border-border absolute bottom-0 left-1/2 z-10 -translate-x-1/2 rounded-full !border text-xs transition md:!pl-3',
 								notAtBottom.current ? 'opacity-100' : 'pointer-events-none scale-95 opacity-0',
 							]}
 							{...mergeAttrs(tooltip.trigger, {
-								style: `bottom: ${wrapperSize.height + 5}px;`,
+								style: `bottom: ${wrapperSize.height + 10}px;`,
 							})}
 						>
-							Scroll to bottom
+							<span class="hidden md:inline">Scroll to bottom</span>
 							<ChevronDownIcon class="inline" />
 						</Button>
 					{/snippet}
@@ -922,7 +922,7 @@
 						<span>Temporary Mode — Messages won't be saved</span>
 					</div>
 				{/if}
-				<div class="text-muted-foreground/60 mb-2 text-center text-[10px]">
+				<div class="text-muted-foreground/60 mb-2 hidden text-center text-[10px] md:block">
 					Powered by <a href="https://nano-gpt.com" class="hover:text-foreground underline"
 						>Nano-GPT</a
 					>

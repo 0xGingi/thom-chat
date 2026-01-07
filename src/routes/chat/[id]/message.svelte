@@ -309,7 +309,7 @@
 		} catch (e) {
 			console.error('Error updating starred state:', e);
 			isStarred = previous;
-	}
+		}
 	}
 </script>
 
@@ -342,7 +342,7 @@
 						<img
 							src={image.url}
 							alt={image.fileName || 'Uploaded'}
-							class="max-w-xs rounded-lg transition-opacity hover:opacity-80"
+							class="max-w-[160px] rounded-lg transition-opacity hover:opacity-80 md:max-w-xs"
 						/>
 					</button>
 				{/each}
@@ -493,12 +493,13 @@
 		{/if}
 		<div
 			class={cn(
-				'flex place-items-center gap-2 transition-opacity group-hover:opacity-100 md:opacity-0',
+				'flex flex-wrap place-items-center gap-1 transition-opacity group-hover:opacity-100 md:gap-2 md:opacity-0',
 				{
 					'justify-end': message.role === 'user',
 				}
 			)}
 		>
+			<!-- Action buttons - always visible on mobile -->
 			<Tooltip>
 				{#snippet trigger(tooltip)}
 					<Button
@@ -529,7 +530,7 @@
 						>
 							<StarIcon
 								class={cn('size-4', {
-									'text-yellow-400 fill-yellow-400': isStarred,
+									'fill-yellow-400 text-yellow-400': isStarred,
 									'text-muted-foreground/60': !isStarred,
 								})}
 							/>
@@ -571,53 +572,67 @@
 					</DropdownMenu.Item>
 				</DropdownMenu.Content>
 			</DropdownMenu.Root>
-			{#if message.role === 'assistant'}
-				{#if message.modelId !== undefined}
-					<span class="text-muted-foreground text-xs">{message.modelId}</span>
-				{/if}
-				{#if message.reasoningEffort}
-					<span class="text-muted-foreground text-xs">
-						<BrainIcon class="inline-block size-4 shrink-0 text-green-500" />
-						{casing.camelToPascal(message.reasoningEffort)}
-					</span>
-				{/if}
-				{#if message.webSearchEnabled}
-					<Tooltip>
-						{#snippet trigger(tooltip)}
-							<span
-								class="text-muted-foreground flex items-center gap-1 text-xs"
-								{...tooltip.trigger}
-							>
-								<GlobeIcon class="text-primary inline-block size-4 shrink-0" />
-								{#if annotations && annotations.length > 0}
-									<span class="text-primary">×{annotations.length}</span>
-								{/if}
-							</span>
-						{/snippet}
-						{#if annotations && annotations.length > 0}
-							Web search: {annotations.length} result{annotations.length === 1 ? '' : 's'} found
-						{:else}
-							Web search enabled
-						{/if}
-					</Tooltip>
-				{/if}
 
-				{#if message.costUsd != null}
-					<span class="text-muted-foreground text-xs">
-						${message.costUsd.toFixed(6)}
-					</span>
-				{/if}
-				{#if message.tokenCount != null}
-					<span class="text-muted-foreground text-xs">
-						{message.tokenCount.toLocaleString()} tokens
-					</span>
-				{/if}
-				{#if message.tokenCount != null && message.responseTimeMs != null && message.responseTimeMs > 0}
-					{@const tps = message.tokenCount / (message.responseTimeMs / 1000)}
-					<span class="text-muted-foreground text-xs">
-						{tps.toFixed(1)} tokens/sec
-					</span>
-				{/if}
+			{#if message.role === 'assistant'}
+				<!-- Desktop: Show all metadata inline -->
+				<div class="hidden items-center gap-2 md:flex">
+					{#if message.modelId !== undefined}
+						{@const modelName = message.modelId.split('/').pop() || message.modelId}
+						<span class="text-muted-foreground text-xs">{modelName}</span>
+					{/if}
+					{#if message.reasoningEffort}
+						<span class="text-muted-foreground text-xs">
+							<BrainIcon class="inline-block size-4 shrink-0 text-green-500" />
+							{casing.camelToPascal(message.reasoningEffort)}
+						</span>
+					{/if}
+					{#if message.webSearchEnabled}
+						<Tooltip>
+							{#snippet trigger(tooltip)}
+								<span
+									class="text-muted-foreground flex items-center gap-1 text-xs"
+									{...tooltip.trigger}
+								>
+									<GlobeIcon class="text-primary inline-block size-4 shrink-0" />
+									{#if annotations && annotations.length > 0}
+										<span class="text-primary">×{annotations.length}</span>
+									{/if}
+								</span>
+							{/snippet}
+							{#if annotations && annotations.length > 0}
+								Web search: {annotations.length} result{annotations.length === 1 ? '' : 's'} found
+							{:else}
+								Web search enabled
+							{/if}
+						</Tooltip>
+					{/if}
+					{#if message.costUsd != null}
+						<span class="text-muted-foreground text-xs">
+							${message.costUsd.toFixed(6)}
+						</span>
+					{/if}
+					{#if message.tokenCount != null}
+						<span class="text-muted-foreground text-xs">
+							{message.tokenCount.toLocaleString()} tokens
+						</span>
+					{/if}
+					{#if message.tokenCount != null && message.responseTimeMs != null && message.responseTimeMs > 0}
+						{@const tps = message.tokenCount / (message.responseTimeMs / 1000)}
+						<span class="text-muted-foreground text-xs">
+							{tps.toFixed(1)} t/s
+						</span>
+					{/if}
+				</div>
+				<!-- Mobile: Compact metadata in a single info chip -->
+				<div class="flex items-center gap-1.5 md:hidden">
+					{#if message.modelId !== undefined}
+						{@const modelName = message.modelId.split('/').pop() || message.modelId}
+						<span class="text-muted-foreground max-w-[100px] truncate text-xs">{modelName}</span>
+					{/if}
+					{#if message.costUsd != null}
+						<span class="text-muted-foreground text-xs">${message.costUsd.toFixed(4)}</span>
+					{/if}
+				</div>
 			{/if}
 		</div>
 		{#if message.role === 'assistant' && message.content.length > 0 && !message.error}
