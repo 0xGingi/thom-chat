@@ -469,13 +469,6 @@
 										</div>
 									{/if}
 								</div>
-
-								<!-- Description - Hidden on mobile for compactness -->
-								{#if nanoGPTModel?.description && !isMobile.current}
-									<p class="text-muted-foreground mt-0.5 max-w-full truncate text-xs">
-										{nanoGPTModel.description}
-									</p>
-								{/if}
 							</div>
 
 							<!-- Capability badges - Desktop only with tooltips -->
