@@ -11,7 +11,7 @@ if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true });
 }
 
-const dbPath = join(dataDir, 'thom-chat.db');
+const dbPath = join(dataDir, 'nanochat.db');
 const sqlite = new Database(dbPath);
 
 // Enable WAL mode for better performance

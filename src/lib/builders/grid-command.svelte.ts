@@ -39,13 +39,13 @@ export class GridCommand {
 
 	get group() {
 		return {
-			'data-thom-grid-command-group': '',
+			'data-nano-grid-command-group': '',
 		} as const satisfies HTMLAttributes<HTMLElement>;
 	}
 
 	get groupHeading() {
 		return {
-			'data-thom-grid-command-group-heading': '',
+			'data-nano-grid-command-group-heading': '',
 		} as const satisfies HTMLAttributes<HTMLElement>;
 	}
 
@@ -118,10 +118,10 @@ export class GridCommand {
 		const nextItemRow = Math.floor(nextItemIdx / this.columns);
 		if (nextItemRow === 0) {
 			const nextGroupEl = Array.from(
-				this.rootEl!.querySelectorAll('[data-thom-grid-command-group]')
+				this.rootEl!.querySelectorAll('[data-nano-grid-command-group]')
 			)[nextGroupIdx];
 			const nextGroupHeadingEl = nextGroupEl?.querySelector(
-				'[data-thom-grid-command-group-heading]'
+				'[data-nano-grid-command-group-heading]'
 			);
 			if (nextGroupHeadingEl) {
 				nextGroupHeadingEl.scrollIntoView({ block: 'nearest' });
@@ -160,13 +160,13 @@ export class GridCommand {
 	getGroups() {
 		if (!this.rootEl) return [];
 
-		const groups = Array.from(this.rootEl.querySelectorAll('[data-thom-grid-command-group]'));
+		const groups = Array.from(this.rootEl.querySelectorAll('[data-nano-grid-command-group]'));
 
 		const result: Array<HTMLElement[]> = [];
 
 		for (const group of groups) {
 			const groupItems = Array.from(
-				group.querySelectorAll('[data-thom-grid-command-item]')
+				group.querySelectorAll('[data-nano-grid-command-item]')
 			) as HTMLElement[];
 
 			result.push(groupItems);
@@ -183,7 +183,7 @@ export class GridCommand {
 
 	getItem(value: string, args: { disabled?: boolean } = {}) {
 		return {
-			'data-thom-grid-command-item': '',
+			'data-nano-grid-command-item': '',
 			'data-highlighted': dataAttr(value === this.highlighted),
 			'data-value': dataAttr(value),
 			'data-disabled': dataAttr(args?.disabled),

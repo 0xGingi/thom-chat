@@ -164,7 +164,7 @@
 	async function handleInviteMember() {
 		if (!project || !inviteUsername) return;
 		inviting = true;
-		const email = `${inviteUsername.trim()}@thom.chat`;
+		const email = `${inviteUsername.trim()}@nano.chat`;
 		try {
 			await mutate(`${api.projects.list.url}/${project.id}/members`, {
 				email,

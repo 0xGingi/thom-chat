@@ -28,7 +28,7 @@ export const auth = betterAuth({
 				(env.BETTER_AUTH_URL || 'http://localhost:3000').replace(/:\d+$/, ''),
 				...(env.BETTER_AUTH_TRUSTED_ORIGINS ? env.BETTER_AUTH_TRUSTED_ORIGINS.split(',') : [])
 			],
-			rpName: 'thom.chat',
+			rpName: 'nano.chat',
 		})
 	],
 	emailAndPassword: {

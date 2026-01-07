@@ -124,7 +124,7 @@ Save conversations as bookmarks to your KaraKeep instance for long-term storage 
 
 | Variable             | Description                                         |
 | -------------------- | --------------------------------------------------- |
-| `DATABASE_URL`       | SQLite database path (default: ./data/thom-chat.db) |
+| `DATABASE_URL`       | SQLite database path (default: ./data/nanochat.db)  |
 | `NANOGPT_API_KEY`    | Nano-GPT API key for generation                     |
 | `BETTER_AUTH_SECRET` | Authentication secret                               |
 | `BETTER_AUTH_URL`    | Base URL for authentication                         |
