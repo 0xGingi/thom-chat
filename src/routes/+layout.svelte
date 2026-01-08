@@ -78,7 +78,7 @@
 
 <svelte:window use:shortcut={getKeybindOptions('newChat', () => goto('/chat'))} />
 
-<ModeWatcher />
+<ModeWatcher defaultMode="dark" />
 {#if browser}
 	{@render children()}
 {/if}
