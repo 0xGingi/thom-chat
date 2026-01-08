@@ -847,18 +847,8 @@
 									conversationId={page.params.id}
 									messages={messages.data}
 									conversation={currentConversationQuery.data}
-									variant="ghost"
-									class="w-full justify-start px-2"
-								>
-									<span class="ml-2">Export Chat</span>
-								</ExportButton>
-								<ShareButton
-									conversationId={page.params.id as Id<'conversations'>}
-									variant="ghost"
-									class="w-full justify-start px-2"
-								>
-									<span class="ml-2">Share Chat</span>
-								</ShareButton>
+								/>
+								<ShareButton conversationId={page.params.id as Id<'conversations'>} />
 							</div>
 							<DropdownMenu.Separator />
 						{/if}

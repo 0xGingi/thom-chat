@@ -25,7 +25,6 @@
 	import ChevronDownIcon from '~icons/lucide/chevron-down';
 	import RefreshCwIcon from '~icons/lucide/refresh-cw';
 	import PencilIcon from '~icons/lucide/pencil';
-	import StarIcon from '~icons/lucide/star';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { AnnotationSchema, type Annotation } from '$lib/types';
 	import ExternalLinkIcon from '~icons/lucide/external-link';
@@ -187,11 +186,6 @@
 
 	let isEditing = $state(false);
 	let editedContent = $state('');
-	let isStarred = $state<boolean>(false);
-
-	$effect(() => {
-		isStarred = message.starred ?? false;
-	});
 
 	function startEditing() {
 		editedContent = message.content;
@@ -278,37 +272,6 @@
 				invalidateQueryPattern(api.conversations.getById.url);
 				invalidateQueryPattern(api.messages.getAllFromConversation.url);
 			}
-		}
-	}
-
-	async function toggleStarred() {
-		if (!session.current?.session.token) return;
-		if (message.role !== 'assistant') return;
-
-		const previous = isStarred;
-		isStarred = !isStarred;
-
-		try {
-			const res = await fetch(api.messages.setStarred.url, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					action: 'setStarred',
-					messageId: message.id,
-					starred: isStarred,
-				}),
-			});
-
-			if (!res.ok) {
-				console.error('Failed to update starred state');
-				isStarred = previous;
-				return;
-			}
-
-			invalidateQueryPattern(api.messages.getAllFromConversation.url);
-		} catch (e) {
-			console.error('Error updating starred state:', e);
-			isStarred = previous;
 		}
 	}
 </script>
@@ -518,27 +481,7 @@
 				{/snippet}
 				{message.role === 'user' ? 'Branch and regenerate message' : 'Branch off this message'}
 			</Tooltip>
-			{#if message.role === 'assistant' && message.content.length > 0 && !message.error}
-				<Tooltip>
-					{#snippet trigger(tooltip)}
-						<Button
-							size="icon"
-							variant="ghost"
-							class="order-1 size-7"
-							onclick={toggleStarred}
-							{...tooltip.trigger}
-						>
-							<StarIcon
-								class={cn('size-4', {
-									'fill-yellow-400 text-yellow-400': isStarred,
-									'text-muted-foreground/60': !isStarred,
-								})}
-							/>
-						</Button>
-					{/snippet}
-					{isStarred ? 'Unstar message' : 'Star message'}
-				</Tooltip>
-			{/if}
+
 			{#if message.content.length > 0}
 				<Tooltip>
 					{#snippet trigger(tooltip)}
@@ -576,7 +519,7 @@
 			{#if message.role === 'assistant'}
 				<!-- Desktop: Show all metadata inline -->
 				<div class="hidden items-center gap-2 md:flex">
-					{#if message.modelId !== undefined}
+					{#if message.modelId}
 						{@const modelName = message.modelId.split('/').pop() || message.modelId}
 						<span class="text-muted-foreground text-xs">{modelName}</span>
 					{/if}
@@ -625,7 +568,7 @@
 				</div>
 				<!-- Mobile: Compact metadata in a single info chip -->
 				<div class="flex items-center gap-1.5 md:hidden">
-					{#if message.modelId !== undefined}
+					{#if message.modelId}
 						{@const modelName = message.modelId.split('/').pop() || message.modelId}
 						<span class="text-muted-foreground max-w-[100px] truncate text-xs">{modelName}</span>
 					{/if}

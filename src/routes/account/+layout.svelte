@@ -5,6 +5,7 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { LightSwitch } from '$lib/components/ui/light-switch';
 	import ArrowLeftIcon from '~icons/lucide/arrow-left';
+	import GithubIcon from '~icons/lucide/github';
 	import { Avatar } from 'melt/components';
 	import { Kbd } from '$lib/components/ui/kbd/index.js';
 	import { formatKeybind } from '$lib/hooks/is-mac.svelte.js';
@@ -141,6 +142,15 @@
 						{/each}
 					</div>
 				</div>
+				<a
+					href="https://github.com/nanogpt-community/nanochat"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="text-muted-foreground hover:text-foreground mt-6 flex items-center gap-2 text-sm transition-colors"
+				>
+					<GithubIcon class="size-4" />
+					<span>View on GitHub</span>
+				</a>
 			</div>
 		</div>
 		<div class="md:col-start-2 md:pl-12">

@@ -598,10 +598,14 @@
 	</button>
 
 	{#if open}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+			role="button"
+			tabindex="-1"
 			transition:fade={{ duration: 150 }}
 			onclick={() => (open = false)}
+			onkeydown={(e) => e.key === 'Escape' && (open = false)}
 		></div>
 		<div
 			class="bg-background fixed inset-x-0 bottom-0 z-50 h-[85vh] touch-none rounded-t-xl border-t shadow-xl"
