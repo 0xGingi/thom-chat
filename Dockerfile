@@ -49,4 +49,4 @@ ENV PORT=3000
 ENV HOST=0.0.0.0
 ENV NODE_ENV=production
 
-CMD ["sh", "-c", "bun run db:push && bun build/index.js"]
+CMD ["sh", "-c", "bun run db:push --force && bun build/index.js"]
